@@ -26,6 +26,7 @@ import {
   FloralSize,
   getFloralByCode
 } from '../../lib/data/floralCatalog';
+import { CashAdvanceCheckPrinterModal } from './CashAdvanceCheckPrinterModal';
 import { 
   FileText, 
   Printer, 
@@ -44,7 +45,8 @@ import {
   Sparkles,
   Layers,
   Tag,
-  Image as ImageIcon
+  Image as ImageIcon,
+  HandCoins
 } from 'lucide-react';
 
 
@@ -119,6 +121,7 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
 
   const [newCashAdvDesc, setNewCashAdvDesc] = useState('');
   const [newCashAdvAmount, setNewCashAdvAmount] = useState(150);
+  const [isCheckPrinterOpen, setIsCheckPrinterOpen] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -2519,13 +2522,50 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                 </div>
               )}
 
-              {/* 3.F CASH ADVANCES */}
+              {/* 3.F CASH ADVANCES & PASS-THROUGH AP CHECKS GENERATOR */}
               {activeVariablesCategory === 'cash_advances' && (
                 <div className="space-y-4 text-xs">
-                  <div className="flex justify-between items-center">
+                  
+                  {/* Executive Pass-Through Check Generator Banner */}
+                  <div className="bg-gradient-to-r from-[#141b2b] via-[#1e2738] to-[#141b2b] text-white p-4 rounded-2xl border-2 border-amber-400/80 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#991b1b] text-white flex items-center justify-center font-bold shadow border border-amber-300">
+                        <HandCoins className="w-5 h-5 text-amber-300" />
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                            100% PASS-THROUGH • 0% MARKUP
+                          </span>
+                          <span className="text-xs text-neutral-300 font-mono">
+                            10 NYCRR § 77.8 Compliance
+                          </span>
+                        </div>
+                        <h4 className="font-serif-title text-sm sm:text-base font-bold text-white tracking-wide">
+                          Accounts Payable Pass-Through Check Generator
+                        </h4>
+                        <p className="text-[11px] text-neutral-300">
+                          Disbursements paid to third-party vendors on family's behalf with deceased name &amp; case # in memo.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsCheckPrinterOpen(true)}
+                        className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md border border-amber-400/50"
+                      >
+                        <Printer className="w-4 h-4 text-amber-300" />
+                        <span>🖨️ Preview &amp; Print Checks (${statementData.sectionII.totalCashAdvances.toFixed(2)})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center px-1">
                     <div>
-                      <h4 className="font-bold text-sm text-neutral-900">Cash Advances (Items Paid on Family's Behalf at Actual Cost)</h4>
-                      <p className="text-xs text-neutral-500">100% pass-through costs. BFH charges only the exact third-party fees.</p>
+                      <h4 className="font-bold text-sm text-neutral-900">Cash Advance Items (Actual Third-Party Invoices)</h4>
+                      <p className="text-xs text-neutral-500">Edit any pass-through item. Changes dynamically update printed checks and Form AP-47.</p>
                     </div>
                     <span className="font-mono font-bold text-sm text-[#991b1b]">
                       Total Cash Advances: ${statementData.sectionII.totalCashAdvances.toFixed(2)}
@@ -2545,6 +2585,7 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         }}
                         className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
                       />
+                      <p className="text-[10px] text-neutral-500 italic">Payee: {statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || "Woodlawn Cemetery & Crematory"}</p>
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
@@ -2559,6 +2600,7 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         }}
                         className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
                       />
+                      <p className="text-[10px] text-neutral-500 italic">Payee: {statementData.sectionII.clergyChurchName || activeCase.serviceSelections.officiantName || "Abyssinian Baptist Church / Officiant"}</p>
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
@@ -2577,6 +2619,7 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         />
                         <span className="text-neutral-500 font-mono">copies = ${statementData.sectionII.deathCertificateTranscriptsAmount.toFixed(2)}</span>
                       </div>
+                      <p className="text-[10px] text-neutral-500 italic">Payee: NYC Dept. of Health &amp; Mental Hygiene (DOHMH)</p>
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
@@ -2591,6 +2634,7 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         }}
                         className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
                       />
+                      <p className="text-[10px] text-neutral-500 italic">Payee: {statementData.sectionII.organistMusicianName || activeCase.serviceSelections.organistName || "Sanctuary Organist & Musician"}</p>
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
@@ -2605,10 +2649,11 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         }}
                         className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
                       />
+                      <p className="text-[10px] text-neutral-500 italic">Payee: Harlem Professional Pallbearers Guild</p>
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
-                      <label className="font-bold text-neutral-800 block">6. Bridge & Road Tolls / Livery Gratuities:</label>
+                      <label className="font-bold text-neutral-800 block">6. Bridge &amp; Road Tolls / Livery Gratuities:</label>
                       <input
                         type="number"
                         value={statementData.sectionII.bridgeAndRoadTollsAmount + statementData.sectionII.gratuitiesLiveryAndStaffAmount}
@@ -2619,6 +2664,7 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         }}
                         className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
                       />
+                      <p className="text-[10px] text-neutral-500 italic">Payee: MTA Bridges &amp; Tunnels / Chauffeur Tolls Pool</p>
                     </div>
                   </div>
 
@@ -2689,6 +2735,39 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                       + Add Cash Advance
                     </button>
                   </div>
+
+                  {/* Live Generated Checks Ledger Summary Box */}
+                  <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center space-x-2">
+                        <HandCoins className="w-4 h-4 text-[#991b1b]" />
+                        <span className="font-bold text-xs text-neutral-900 uppercase tracking-wider">
+                          Auto-Generated Check Vouchers for Date of Service:
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCheckPrinterOpen(true)}
+                        className="text-xs text-[#991b1b] font-bold hover:underline flex items-center gap-1"
+                      >
+                        <span>Open 3-Part Voucher Printer</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="text-[11px] text-neutral-700 space-y-1">
+                      <p>
+                        • <strong>Memo format on each check:</strong> <code className="bg-white px-1.5 py-0.5 rounded border border-amber-300 font-mono text-[10px] text-[#991b1b]">{activeCase.decedent.legalName} • Case #{activeCase.caseNumber} • Svc Date: {statementData.agreementDate || '09/24/2026'}</code>
+                      </p>
+                      <p>
+                        • <strong>Bank account:</strong> JPMorgan Chase Operating Pass-Through (**4892)
+                      </p>
+                      <p>
+                        • <strong>Staff time saved:</strong> Automated drafting eliminates manual check writing and ensures 100% accurate delivery stubs at cemetery/church on the day of service.
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
               )}
 
@@ -3015,9 +3094,19 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                     
                     {/* Left Column: Cash Advances */}
                     <div className="space-y-3 border border-neutral-300 rounded-xl p-3.5">
-                      <h5 className="font-bold text-xs uppercase text-[#991b1b] border-b border-neutral-200 pb-1">
-                        II. CASH ADVANCES (Paid to Others on Family's Behalf)
-                      </h5>
+                      <div className="flex justify-between items-center border-b border-neutral-200 pb-1">
+                        <h5 className="font-bold text-xs uppercase text-[#991b1b]">
+                          II. CASH ADVANCES (Paid to Others on Family's Behalf)
+                        </h5>
+                        <button
+                          type="button"
+                          onClick={() => setIsCheckPrinterOpen(true)}
+                          className="px-2.5 py-1 bg-[#991b1b] hover:bg-red-800 text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1 shadow-xs border border-amber-300/40"
+                        >
+                          <Printer className="w-3 h-3 text-amber-300" />
+                          <span>Print Checks (${statementData.sectionII.totalCashAdvances.toFixed(2)})</span>
+                        </button>
+                      </div>
                       <p className="text-[9px] text-neutral-500 italic">
                         These are estimated charges for items to be paid to others. We will charge you no more for these items than is actually paid the third parties.
                       </p>
@@ -3211,6 +3300,21 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
         </div>
 
       </div>
+
+      {/* 3-Part Pass-Through Check Voucher Printer Modal */}
+      {isCheckPrinterOpen && (
+        <CashAdvanceCheckPrinterModal
+          isOpen={isCheckPrinterOpen}
+          onClose={() => setIsCheckPrinterOpen(false)}
+          caseData={activeCase}
+          customStatement={statementData}
+          onUpdateChecks={(updatedChecks) => {
+            const updated = { ...statementData, cashAdvanceChecks: updatedChecks };
+            setStatementData(updated);
+          }}
+        />
+      )}
+
     </div>
   );
 };

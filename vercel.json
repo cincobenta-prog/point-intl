@@ -1,8 +1,81 @@
 {
+  "version": 2,
+  "name": "bentas-funeral-home-os",
+  "cleanUrls": true,
+  "framework": "vite",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/api/twilio/sms",
+      "destination": "/api/twilio/sms"
+    },
+    {
+      "source": "/api/ai/chat",
+      "destination": "/api/ai/chat"
+    },
+    {
+      "source": "/api/stripe/create-payment-intent",
+      "destination": "/api/stripe/create-payment-intent"
+    },
+    {
+      "source": "/api/quickbooks/sync",
+      "destination": "/api/quickbooks/sync"
+    },
+    {
+      "source": "/api/docusign/envelope",
+      "destination": "/api/docusign/envelope"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(manifest.json|sw.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
     }
   ]
 }

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { 
   RoomScheduleEvent, 
   GoldenRecordCase,
-  RoomId
+  RoomId,
+  DirectorProfile
 } from '../../lib/types/funeral';
-import { FACILITY_ROOMS } from '../../lib/data/mockCases';
+import { FACILITY_ROOMS, INITIAL_DIRECTOR_PROFILES } from '../../lib/data/mockCases';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -24,7 +25,8 @@ import {
   CalendarRange,
   LayoutGrid,
   List,
-  Check
+  Check,
+  UserCheck
 } from 'lucide-react';
 
 interface FacilityCalendarViewProps {
@@ -33,6 +35,7 @@ interface FacilityCalendarViewProps {
   onAddEvent: (newEvent: RoomScheduleEvent) => void;
   onSelectCase: (caseItem: GoldenRecordCase) => void;
   onOpenGoldenRecord: () => void;
+  directorProfiles?: DirectorProfile[];
 }
 
 type CalendarTimeframe = 'day' | 'week' | 'month';
@@ -43,7 +46,8 @@ export const FacilityCalendarView: React.FC<FacilityCalendarViewProps> = ({
   cases,
   onAddEvent,
   onSelectCase,
-  onOpenGoldenRecord
+  onOpenGoldenRecord,
+  directorProfiles = INITIAL_DIRECTOR_PROFILES
 }) => {
   // Primary Calendar States
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-22');
@@ -51,6 +55,7 @@ export const FacilityCalendarView: React.FC<FacilityCalendarViewProps> = ({
   const [dailyMode, setDailyMode] = useState<DailyDisplayMode>('matrix');
   const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'chapel' | 'repast' | 'suite' | 'parlor' | 'offsite'>('all');
+  const [selectedDirectorFilter, setSelectedDirectorFilter] = useState<string>('all');
   
   // Modals & Detail Popups
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -79,12 +84,36 @@ export const FacilityCalendarView: React.FC<FacilityCalendarViewProps> = ({
     return true;
   });
 
-  // Filter events matching active room/category filter
+  // Helper to get Director Color Theme
+  const getDirectorColorTheme = (evt: RoomScheduleEvent) => {
+    if (evt.assignedDirectorId) {
+      const found = directorProfiles.find(d => d.id === evt.assignedDirectorId);
+      if (found?.colorTheme) return found.colorTheme;
+    }
+    // Match by first name
+    const foundByName = directorProfiles.find(d => evt.assignedDirector && d.name.toLowerCase().includes(evt.assignedDirector.toLowerCase().split(' ')[0]));
+    if (foundByName?.colorTheme) return foundByName.colorTheme;
+    return {
+      name: 'Crimson Wine',
+      primary: '#991b1b',
+      badgeBg: 'bg-red-100 text-red-900 border-red-300',
+      calendarBg: 'bg-red-50/95 border-l-4 border-red-600 shadow-xs',
+      border: 'border-red-500',
+      text: 'text-[#991b1b]'
+    };
+  };
+
+  // Filter events matching active room/category and director filter
   const matchesFilter = (evt: RoomScheduleEvent) => {
     const room = rooms.find(r => r.id === evt.roomId);
     if (!room) return false;
     if (selectedCategory !== 'all' && room.type !== selectedCategory) return false;
     if (selectedRoomFilter !== 'all' && room.id !== selectedRoomFilter) return false;
+    if (selectedDirectorFilter !== 'all') {
+      if (evt.assignedDirectorId !== selectedDirectorFilter && !evt.assignedDirector.toLowerCase().includes(selectedDirectorFilter.toLowerCase())) {
+        return false;
+      }
+    }
     return true;
   };
 
@@ -514,6 +543,46 @@ export const FacilityCalendarView: React.FC<FacilityCalendarViewProps> = ({
         ))}
       </div>
 
+      {/* COLOR-COORDINATED FUNERAL DIRECTOR LEGEND & QUICK FILTER BAR */}
+      <div className="bg-white p-3.5 rounded-2xl border border-neutral-200 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center space-x-2">
+          <span className="font-bold text-neutral-800 text-xs flex items-center gap-1.5">
+            <UserCheck className="w-4 h-4 text-[#991b1b]" />
+            <span>Director Color Board:</span>
+          </span>
+          <button
+            onClick={() => setSelectedDirectorFilter('all')}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
+              selectedDirectorFilter === 'all'
+                ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                : 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-neutral-200'
+            }`}
+          >
+            Show All Directors
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {directorProfiles.map(d => {
+            const isSelected = selectedDirectorFilter === d.id || selectedDirectorFilter === d.name;
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSelectedDirectorFilter(isSelected ? 'all' : d.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border flex items-center space-x-1.5 ${
+                  isSelected
+                    ? 'ring-2 ring-neutral-900 shadow-xs'
+                    : 'hover:opacity-90'
+                } ${d.colorTheme?.badgeBg || 'bg-neutral-100'}`}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.colorTheme?.primary || '#991b1b' }} />
+                <span>{d.name.split(' ')[0]} ({d.colorTheme?.name})</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ========================================================= */}
       {/* 3. VIEW MODE: DAILY VIEW                                  */}
       {/* ========================================================= */}
@@ -590,66 +659,73 @@ export const FacilityCalendarView: React.FC<FacilityCalendarViewProps> = ({
                           </button>
                         </div>
                       ) : (
-                        roomEvents.map((evt) => (
-                          <div
-                            key={evt.id}
-                            onClick={() => setSelectedEventDetail(evt)}
-                            className="p-3.5 rounded-xl border border-red-200/90 bg-red-50/40 hover:bg-red-50 hover:border-red-300 transition cursor-pointer space-y-2 shadow-xs"
-                          >
-                            {/* Time & Case Number */}
-                            <div className="flex justify-between items-center text-[11px]">
-                              <span className="font-mono font-bold text-[#991b1b] bg-white px-2 py-0.5 rounded border border-red-200 flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-[#991b1b]" />
-                                {evt.startTime} – {evt.endTime}
-                              </span>
-                              <span className="font-mono text-[10px] text-neutral-500 font-bold">
-                                {evt.caseNumber}
-                              </span>
-                            </div>
+                        roomEvents.map((evt) => {
+                          const dirTheme = getDirectorColorTheme(evt);
 
-                            {/* Decedent & Title */}
-                            <div>
-                              <h4 className="font-serif-title font-bold text-xs text-neutral-900 leading-tight">
-                                {evt.decedentName}
-                              </h4>
-                              <p className="text-[11px] text-[#b45309] font-medium mt-0.5 line-clamp-1">
-                                {evt.title}
-                              </p>
-                            </div>
-
-                            {/* Service Metadata */}
-                            <div className="space-y-1 text-[10px] text-neutral-600 pt-1 border-t border-red-100">
-                              {evt.officiantName && (
-                                <p className="flex items-center gap-1">
-                                  <User className="w-3 h-3 text-neutral-400" />
-                                  <span className="truncate">Clergy: {evt.officiantName}</span>
-                                </p>
-                              )}
-                              <div className="flex items-center justify-between pt-0.5">
-                                <span className="flex items-center gap-1 text-neutral-500">
-                                  <Users className="w-3 h-3 text-neutral-400" />
-                                  ~{evt.estimatedGuests} guests
+                          return (
+                            <div
+                              key={evt.id}
+                              onClick={() => setSelectedEventDetail(evt)}
+                              className={`p-3.5 rounded-xl border ${dirTheme.calendarBg} hover:shadow-xs transition cursor-pointer space-y-2`}
+                            >
+                              {/* Time & Case Number */}
+                              <div className="flex justify-between items-center text-[11px]">
+                                <span className="font-mono font-bold text-neutral-900 bg-white px-2 py-0.5 rounded border border-neutral-300 flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-neutral-600" />
+                                  {evt.startTime} – {evt.endTime}
                                 </span>
-                                {evt.livestreamActive && (
-                                  <span className="bg-red-100 text-[#991b1b] px-1.5 py-0.2 rounded font-bold flex items-center gap-0.5">
-                                    <Video className="w-2.5 h-2.5" /> HD Stream
+                                <span className="font-mono text-[10px] text-neutral-600 font-bold">
+                                  {evt.caseNumber}
+                                </span>
+                              </div>
+
+                              {/* Decedent & Title */}
+                              <div>
+                                <h4 className="font-serif-title font-bold text-xs text-neutral-900 leading-tight">
+                                  {evt.decedentName}
+                                </h4>
+                                <p className="text-[11px] font-semibold mt-0.5 line-clamp-1" style={{ color: dirTheme.primary }}>
+                                  {evt.title}
+                                </p>
+                              </div>
+
+                              {/* Service Metadata */}
+                              <div className="space-y-1 text-[10px] text-neutral-600 pt-1 border-t border-neutral-200/60">
+                                {evt.officiantName && (
+                                  <p className="flex items-center gap-1">
+                                    <User className="w-3 h-3 text-neutral-400" />
+                                    <span className="truncate">Clergy: {evt.officiantName}</span>
+                                  </p>
+                                )}
+                                <div className="flex items-center justify-between pt-0.5">
+                                  <span className="flex items-center gap-1 text-neutral-500">
+                                    <Users className="w-3 h-3 text-neutral-400" />
+                                    ~{evt.estimatedGuests} guests
                                   </span>
+                                  {evt.livestreamActive && (
+                                    <span className="bg-red-100 text-[#991b1b] px-1.5 py-0.2 rounded font-bold flex items-center gap-0.5">
+                                      <Video className="w-2.5 h-2.5" /> HD Stream
+                                    </span>
+                                  )}
+                                </div>
+                                {evt.woodlawnDepartureTime && (
+                                  <p className="flex items-center gap-1 text-[#991b1b] font-bold">
+                                    <Flame className="w-3 h-3 text-[#991b1b]" />
+                                    <span>Woodlawn Departure: {evt.woodlawnDepartureTime}</span>
+                                  </p>
                                 )}
                               </div>
-                              {evt.woodlawnDepartureTime && (
-                                <p className="flex items-center gap-1 text-[#991b1b] font-bold">
-                                  <Flame className="w-3 h-3 text-[#991b1b]" />
-                                  <span>Woodlawn Departure: {evt.woodlawnDepartureTime}</span>
-                                </p>
-                              )}
-                            </div>
 
-                            <div className="pt-1 flex justify-between items-center text-[10px] text-neutral-500">
-                              <span>Dir: {evt.assignedDirector.split(' ')[0]}</span>
-                              <span className="text-[#991b1b] font-bold hover:underline">Details →</span>
+                              {/* Director Badge with Theme Color */}
+                              <div className="pt-1.5 flex justify-between items-center text-[10px] border-t border-neutral-200/40">
+                                <span className={`px-2 py-0.5 rounded font-bold border ${dirTheme.badgeBg}`}>
+                                  Lead: {evt.assignedDirector}
+                                </span>
+                                <span className="font-bold hover:underline" style={{ color: dirTheme.primary }}>Details →</span>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
 

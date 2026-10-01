@@ -24,6 +24,10 @@ import {
   searchMerchandise
 } from '../../lib/data/casketCatalog';
 import { 
+  formatPhoneNumbersOnly, 
+  isValidEmailFormat 
+} from '../../lib/utils/inputValidation';
+import { 
   Users, 
   Scissors, 
   Music, 
@@ -76,14 +80,14 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
   onAddPartner,
   onImportPartners,
   onAddRequest,
-  onUpdateRequest: _onUpdateRequest,
+  onUpdateRequest,
   onSimulateReminder,
   onSimulateConfirm,
   onOpenTwoWaySmsModal
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
-    'directory' | 'bfh_staff' | 'benta_fleet' | 'churches' | 'hospitals' | 'nursing_homes' | 'florists' | 'caskets' | 'cemeteries' | 'dispatch' | 'reminders'
-  >('directory');
+    'all_cases_sms' | 'directory' | 'bfh_staff' | 'benta_fleet' | 'churches' | 'hospitals' | 'nursing_homes' | 'florists' | 'caskets' | 'cemeteries' | 'dispatch' | 'reminders'
+  >('all_cases_sms');
   const [categoryFilter, setCategoryFilter] = useState<'all' | PartnerCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [partnerCasketFilter, setPartnerCasketFilter] = useState<ManufacturerFilter>('all');
@@ -92,6 +96,9 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
   // Modals
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false);
   const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
+  const [phoneLogRequestId, setPhoneLogRequestId] = useState<string | null>(null);
+  const [phoneLogNotes, setPhoneLogNotes] = useState<string>('Director called vendor directly. Vendor verbally confirmed availability and arrival time.');
+  const [phoneLogCallerName, setPhoneLogCallerName] = useState<string>('Jason Benta, LFD #08850');
 
   // New Partner Form State
   const [newPartnerName, setNewPartnerName] = useState('');
@@ -110,6 +117,8 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
   // New Dispatch Request Form State
   const [dispatchCaseId, setDispatchCaseId] = useState<string>(activeCase.id);
   const [dispatchPartnerId, setDispatchPartnerId] = useState<string>(partners[0]?.id || '');
+  const [dispatchStandbyPartnerId, setDispatchStandbyPartnerId] = useState<string>(partners[1]?.id || '');
+  const [dispatchSlaHours, setDispatchSlaHours] = useState<number>(4);
   const [dispatchDate, setDispatchDate] = useState<string>(activeCase.serviceSelections.serviceDate || '2026-09-22');
   const [dispatchCallTime, setDispatchCallTime] = useState<string>('09:30 AM');
   const [dispatchEndTime, setDispatchEndTime] = useState<string>('12:30 PM');
@@ -155,6 +164,8 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
     switch (status) {
       case 'confirmed':
         return { label: 'Confirmed (YES Received)', color: 'bg-emerald-50 text-emerald-800 border-emerald-300' };
+      case 'overdue_unconfirmed':
+        return { label: '🚨 Overdue (Director Action Req)', color: 'bg-red-50 text-red-900 border-red-300 animate-pulse' };
       case 'reminder_1_sent':
         return { label: 'Reminder #1 Sent (Awaiting Reply)', color: 'bg-amber-50 text-amber-800 border-amber-300' };
       case 'reminder_2_sent':
@@ -172,27 +183,111 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
 
   // Live selected partner for dispatch
   const currentSelectedPartner = partners.find(p => p.id === dispatchPartnerId) || partners[0];
+  const currentStandbyPartner = partners.find(p => p.id === dispatchStandbyPartnerId) || partners[1];
   const currentTargetCase = cases.find(c => c.id === dispatchCaseId) || activeCase;
 
   // Auto-generate SMS Draft
-  const generatedSmsText = `BFH SERVICE REQUEST: Dear ${currentSelectedPartner?.fullName || 'Partner'}, Benta's Funeral Home requests your ${currentSelectedPartner?.roleTitle || 'services'} for the ${currentTargetCase?.informant.fullName.split(' ')[1] || 'Family'} (${currentTargetCase?.decedent.legalName}, Case #${currentTargetCase?.caseNumber}) on ${dispatchDate} at ${dispatchCallTime}. Location: ${dispatchVenue}. Special notes: ${dispatchInstructions}. Compensation: ${dispatchFee}. Reply YES to confirm or NO if unavailable.`;
+  const generatedSmsText = `BFH SERVICE REQUEST: Dear ${currentSelectedPartner?.fullName || 'Partner'}, Benta's Funeral Home requests your ${currentSelectedPartner?.roleTitle || 'services'} for the ${currentTargetCase?.informant.fullName.split(' ')[1] || 'Family'} (${currentTargetCase?.decedent.legalName}, Case #${currentTargetCase?.caseNumber}) on ${dispatchDate} at ${dispatchCallTime}. Location: ${dispatchVenue}. Special notes: ${dispatchInstructions}. Compensation: ${dispatchFee}. Reply YES to confirm within ${dispatchSlaHours}h or NO if unavailable.`;
+
+  // 1-Tap Standby Cascade Fallback Handler
+  const handleStandbyCascade = (req: PartnerScheduleRequest) => {
+    const standbyPartner = partners.find(p => p.id === req.standbyBackupPartnerId || p.fullName === req.standbyBackupPartnerName) || partners.find(p => p.category === req.category && p.id !== req.partnerId);
+    if (!standbyPartner) {
+      alert('No standby backup partner found in directory for this category.');
+      return;
+    }
+
+    const nowFormatted = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString();
+    const newSmsText = `BFH URGENT STANDBY DISPATCH: Dear ${standbyPartner.fullName}, you have been activated from standby for ${req.roleTitle} on Case #${req.caseNumber} (${req.decedentName}) on ${req.serviceDate} at ${req.callTime} (${req.venueLocation}). Please reply YES immediately to confirm.`;
+
+    const updated: PartnerScheduleRequest = {
+      ...req,
+      partnerId: standbyPartner.id,
+      partnerName: standbyPartner.fullName,
+      partnerPhone: standbyPartner.phone,
+      roleTitle: standbyPartner.roleTitle,
+      status: 'sms_sent',
+      isOverdue: false,
+      overdueMinutes: 0,
+      escalationStatus: 'backup_cascaded',
+      directorFollowUpRequired: false,
+      requestedAt: nowFormatted,
+      smsMessageDraft: newSmsText,
+      remindersCount: 0,
+      threadMessages: [
+        ...(req.threadMessages || []),
+        {
+          id: `msg-cascade-${Date.now()}`,
+          sender: 'bfh_dispatch',
+          senderName: "Benta's Dispatch (Standby Cascade Fallback)",
+          senderPhone: '(212) 281-8850',
+          body: `[CASCADE FALLBACK ACTIVATED]: Primary vendor was unresponsive past SLA deadline. Service reassigned to Standby Partner ${standbyPartner.fullName} (${standbyPartner.phone}). SMS hold dispatched.`,
+          timestamp: `Today ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          status: 'delivered'
+        }
+      ]
+    };
+
+    onUpdateRequest(updated);
+  };
+
+  // 1-Tap Verbal Phone Confirmation Handler
+  const handleLogDirectorPhoneCall = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneLogRequestId) return;
+
+    const req = requests.find(r => r.id === phoneLogRequestId);
+    if (!req) return;
+
+    const nowFormatted = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString();
+    const updated: PartnerScheduleRequest = {
+      ...req,
+      status: 'confirmed',
+      isOverdue: false,
+      directorFollowUpRequired: false,
+      directorCalledAt: nowFormatted,
+      directorFollowUpNotes: phoneLogNotes,
+      escalationStatus: 'director_phone_confirmed',
+      confirmedAt: nowFormatted,
+      threadMessages: [
+        ...(req.threadMessages || []),
+        {
+          id: `msg-phone-call-${Date.now()}`,
+          sender: 'bfh_dispatch',
+          senderName: phoneLogCallerName,
+          senderPhone: '(212) 281-8850',
+          body: `[DIRECTOR PHONE CALL LOGGED]: ${phoneLogNotes} (Logged by ${phoneLogCallerName} at ${nowFormatted})`,
+          timestamp: `Today ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          status: 'delivered'
+        }
+      ]
+    };
+
+    onUpdateRequest(updated);
+    setPhoneLogRequestId(null);
+  };
 
   const handleCreatePartner = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPartnerName || !newPartnerPhone) return;
+    if (!newPartnerName.trim() || !newPartnerPhone.trim()) return;
+
+    if (newPartnerEmail.trim() && !isValidEmailFormat(newPartnerEmail.trim())) {
+      alert('Please enter a valid email format (e.g. partner@harlem.org).');
+      return;
+    }
 
     const initials = newPartnerName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     const newP: ServicePartnerContact = {
       id: `sp-${Date.now()}`,
-      fullName: newPartnerName,
-      roleTitle: newPartnerRole || 'Specialized Service Partner',
+      fullName: newPartnerName.trim(),
+      roleTitle: newPartnerRole.trim() || 'Specialized Service Partner',
       category: newPartnerCategory,
-      phone: newPartnerPhone,
-      email: newPartnerEmail || undefined,
-      organization: newPartnerOrg || undefined,
+      phone: newPartnerPhone.trim(),
+      email: newPartnerEmail.trim() || undefined,
+      organization: newPartnerOrg.trim() || undefined,
       status: 'active',
-      rateInfo: newPartnerRate || undefined,
-      notes: newPartnerNotes || undefined,
+      rateInfo: newPartnerRate.trim() || undefined,
+      notes: newPartnerNotes.trim() || undefined,
       avatarInitials: initials
     };
 
@@ -201,11 +296,18 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
     setNewPartnerName('');
     setNewPartnerPhone('');
     setNewPartnerRole('');
+    setNewPartnerEmail('');
+    setNewPartnerOrg('');
+    setNewPartnerRate('');
+    setNewPartnerNotes('');
   };
 
   const handleCreateDispatchRequest = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentSelectedPartner || !currentTargetCase) return;
+
+    const deadlineHour = new Date(Date.now() + dispatchSlaHours * 3600000);
+    const deadlineStr = `Today ${deadlineHour.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     const newReq: PartnerScheduleRequest = {
       id: `req-${Date.now()}`,
@@ -228,11 +330,21 @@ export const ServicePartnerNetworkManager: React.FC<ServicePartnerNetworkManager
       requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString(),
       remindersCount: 0,
       recurringIntervalMinutes: 240,
-      smsMessageDraft: generatedSmsText
+      smsMessageDraft: generatedSmsText,
+      responseDeadline: deadlineStr,
+      isOverdue: false,
+      overdueMinutes: 0,
+      urgencyLevel: 'normal',
+      directorFollowUpRequired: false,
+      standbyBackupPartnerId: currentStandbyPartner?.id,
+      standbyBackupPartnerName: currentStandbyPartner?.fullName,
+      standbyBackupPartnerPhone: currentStandbyPartner?.phone,
+      standbyBackupRoleTitle: currentStandbyPartner?.roleTitle,
+      escalationStatus: 'normal'
     };
 
     onAddRequest(newReq);
-    setActiveSubTab('reminders');
+    setActiveSubTab('all_cases_sms');
   };
 
   const handleParseCSV = () => {
@@ -359,6 +471,23 @@ Gregory Hall,Licensed Trade Funeral Director,outside_director,(917) 555-6623,gha
         
         {/* Master Directory Sub-Tabs */}
         <div className="flex flex-wrap items-center gap-1 bg-neutral-100 p-1.5 rounded-xl border border-neutral-200 text-xs font-bold">
+          <button
+            onClick={() => setActiveSubTab('all_cases_sms')}
+            className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+              activeSubTab === 'all_cases_sms'
+                ? 'bg-white text-[#991b1b] shadow-xs ring-1 ring-neutral-200'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5 text-[#991b1b]" />
+            <span>All-Cases SMS Matrix</span>
+            {requests.some(r => r.isOverdue || r.status === 'overdue_unconfirmed') && (
+              <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
+                {requests.filter(r => r.isOverdue || r.status === 'overdue_unconfirmed').length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setActiveSubTab('directory')}
             className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
@@ -511,6 +640,317 @@ Gregory Hall,Licensed Trade Funeral Director,outside_director,(917) 555-6623,gha
           </div>
         </div>
       </div>
+
+      {/* ========================================================= */}
+      {/* 2B. SUB-VIEW: ALL-CASES SMS STATUS MATRIX & OVERDUE ALERTS */}
+      {/* ========================================================= */}
+      {activeSubTab === 'all_cases_sms' && (
+        <div className="space-y-5">
+          
+          {/* URGENT SLA OVERDUE ESCALATION BANNER */}
+          {requests.some(r => r.isOverdue || r.status === 'overdue_unconfirmed') && (
+            <div className="bg-gradient-to-r from-red-600 via-red-700 to-rose-900 text-white p-4 sm:p-5 rounded-2xl shadow-md border-2 border-red-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-white shrink-0 border border-white/30 animate-pulse">
+                  <AlertCircle className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-amber-300 text-red-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      🚨 DIRECTOR ACTION REQUIRED
+                    </span>
+                    <span className="text-xs font-mono font-bold text-red-100">
+                      {requests.filter(r => r.isOverdue || r.status === 'overdue_unconfirmed').length} Partner SLA Deadlines Expired
+                    </span>
+                  </div>
+                  <h3 className="font-serif-title text-base sm:text-lg font-bold text-white mt-0.5">
+                    Unconfirmed Service Partners Past Response Deadline
+                  </h3>
+                  <p className="text-xs text-red-100 font-light mt-0.5 max-w-2xl">
+                    Service partners have not responded with "YES" within their SLA cutoff. Funeral Directors should call immediately or trigger a 1-tap <strong>Cascade Fallback</strong> to assign pre-verified Harlem standby backups.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => {
+                    const firstOverdue = requests.find(r => r.isOverdue || r.status === 'overdue_unconfirmed');
+                    if (firstOverdue && onOpenTwoWaySmsModal) {
+                      onOpenTwoWaySmsModal(firstOverdue.id);
+                    }
+                  }}
+                  className="px-4 py-2 bg-white hover:bg-amber-50 text-red-900 font-bold text-xs rounded-xl transition shadow-sm flex items-center gap-1.5"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-red-800" />
+                  <span>Launch 2-Way SMS Studio</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MASTER MATRIX TABLE */}
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden space-y-4 p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-4">
+              <div>
+                <h3 className="font-serif-title font-bold text-lg text-neutral-900 flex items-center gap-2">
+                  <Smartphone className="w-5 h-5 text-[#991b1b]" />
+                  All-Cases Service Partner SMS Status Matrix
+                </h3>
+                <p className="text-xs text-neutral-600 font-light mt-0.5">
+                  Universal dispatch monitor tracking Hairdressers, Barbers, Outside Trade Directors, Pallbearers, Organists, and Ministers across all active cases.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  onClick={() => setActiveSubTab('dispatch')}
+                  className="px-3.5 py-1.5 bg-[#991b1b] hover:bg-red-800 text-white font-bold rounded-xl transition shadow-xs flex items-center gap-1.5 border border-amber-300/40"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Dispatch New Partner</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Matrix Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-neutral-50 text-neutral-600 uppercase text-[10px] tracking-wider border-b border-neutral-200 font-mono">
+                    <th className="py-3 px-3">Case & NOK Informant</th>
+                    <th className="py-3 px-3">Service Schedule & Venue</th>
+                    <th className="py-3 px-3">Primary Service Partner</th>
+                    <th className="py-3 px-3">Response SLA & Confirmation Status</th>
+                    <th className="py-3 px-3">Standby Backup Partner</th>
+                    <th className="py-3 px-3 text-right">Director Operational Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {requests.filter(r => {
+                    if (!searchQuery.trim()) return true;
+                    const q = searchQuery.toLowerCase();
+                    return (
+                      r.decedentName.toLowerCase().includes(q) ||
+                      r.caseNumber.toLowerCase().includes(q) ||
+                      r.partnerName.toLowerCase().includes(q) ||
+                      r.roleTitle.toLowerCase().includes(q)
+                    );
+                  }).map((req) => {
+                    const statusMeta = getStatusMeta(req.status);
+                    const isConfirmed = req.status === 'confirmed';
+                    const isOverdue = req.isOverdue || req.status === 'overdue_unconfirmed';
+                    const Icon = getCategoryMeta(req.category).icon;
+
+                    return (
+                      <tr 
+                        key={req.id}
+                        className={`hover:bg-neutral-50/80 transition-colors ${
+                          isOverdue ? 'bg-red-50/40' : ''
+                        }`}
+                      >
+                        {/* Case & Decedent */}
+                        <td className="py-3 px-3 align-top">
+                          <div className="space-y-0.5">
+                            <span className="font-mono text-[10px] font-bold text-[#991b1b] bg-red-50 border border-red-200 px-1.5 py-0.2 rounded">
+                              {req.caseNumber}
+                            </span>
+                            <div className="font-serif-title font-bold text-sm text-neutral-900 leading-tight">
+                              {req.decedentName}
+                            </div>
+                            <div className="text-[11px] text-neutral-500 font-light">
+                              {req.familyReferenceName}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Service Schedule */}
+                        <td className="py-3 px-3 align-top">
+                          <div className="space-y-0.5 text-neutral-700">
+                            <div className="font-bold text-neutral-900 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-[#991b1b]" />
+                              <span>{req.serviceDate}</span>
+                            </div>
+                            <div className="text-[11px] font-medium text-[#b45309]">
+                              Call: {req.callTime} {req.serviceEndTime ? `(until ${req.serviceEndTime})` : ''}
+                            </div>
+                            <div className="text-[10px] text-neutral-500 truncate max-w-[180px]" title={req.venueLocation}>
+                              {req.venueLocation}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Primary Service Partner */}
+                        <td className="py-3 px-3 align-top">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-1.5">
+                              <span className="p-1 rounded bg-neutral-100 text-neutral-700">
+                                <Icon className="w-3 h-3 text-[#991b1b]" />
+                              </span>
+                              <strong className="font-serif-title font-bold text-neutral-900">
+                                {req.partnerName}
+                              </strong>
+                            </div>
+                            <div className="text-[11px] text-[#b45309] font-bold">
+                              {req.roleTitle}
+                            </div>
+                            <div className="text-[10px] font-mono text-neutral-500 flex items-center gap-1">
+                              <Phone className="w-2.5 h-2.5 text-[#991b1b]" />
+                              <span>{req.partnerPhone}</span>
+                              {req.honorariumFee && (
+                                <span className="text-neutral-700 font-bold ml-1">({req.honorariumFee})</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Response SLA & Confirmation Status */}
+                        <td className="py-3 px-3 align-top">
+                          <div className="space-y-1.5">
+                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 ${statusMeta.color}`}>
+                              {isConfirmed ? (
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              ) : isOverdue ? (
+                                <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
+                              ) : (
+                                <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                              )}
+                              <span>{statusMeta.label}</span>
+                            </span>
+
+                            {isOverdue && (
+                              <div className="text-[10px] font-mono text-red-700 font-bold bg-red-100/80 px-2 py-0.5 rounded border border-red-200">
+                                ⏱ Overdue by {req.overdueMinutes || 60} mins • Deadline was {req.responseDeadline || 'Expired'}
+                              </div>
+                            )}
+
+                            {!isOverdue && !isConfirmed && req.responseDeadline && (
+                              <div className="text-[10px] font-mono text-neutral-500">
+                                SLA Cutoff: <strong>{req.responseDeadline}</strong>
+                              </div>
+                            )}
+
+                            {isConfirmed && req.confirmedAt && (
+                              <div className="text-[10px] font-mono text-emerald-700">
+                                Confirmed: {req.confirmedAt}
+                              </div>
+                            )}
+
+                            {req.escalationStatus === 'backup_cascaded' && (
+                              <div className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                ⚡ Standby Cascade Activated
+                              </div>
+                            )}
+
+                            {req.escalationStatus === 'director_phone_confirmed' && (
+                              <div className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                📞 Director Phone Override Confirmed
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Standby Backup Partner */}
+                        <td className="py-3 px-3 align-top">
+                          <div className="space-y-1 bg-[#fbfbfd] p-2 rounded-xl border border-neutral-200 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] uppercase font-bold text-neutral-500">Standby Route:</span>
+                              <span className="text-[9px] bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                                Armed
+                              </span>
+                            </div>
+                            <div className="font-bold text-neutral-900 leading-tight">
+                              {req.standbyBackupPartnerName || 'Assigned in Harlem Directory'}
+                            </div>
+                            <div className="text-[10px] font-mono text-neutral-600">
+                              {req.standbyBackupPartnerPhone || '(212) 555-0199'}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Operational Actions */}
+                        <td className="py-3 px-3 align-top text-right">
+                          <div className="flex flex-col items-end gap-1.5">
+                            
+                            {/* 1. Open 2-Way SMS Studio */}
+                            {onOpenTwoWaySmsModal && (
+                              <button
+                                onClick={() => onOpenTwoWaySmsModal(req.id)}
+                                className="px-2.5 py-1 bg-[#991b1b] hover:bg-red-800 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-2xs border border-amber-300/40 w-full justify-center"
+                                title="Open Live Carrier 2-Way SMS Console"
+                              >
+                                <Smartphone className="w-3 h-3 text-amber-300" />
+                                <span>2-Way SMS Studio</span>
+                              </button>
+                            )}
+
+                            {/* 2. Overdue Standby Cascade Fallback */}
+                            {!isConfirmed && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Cascade service request to Standby Backup Partner (${req.standbyBackupPartnerName || 'Next Available'})? This will reassign the case and send an urgent standby dispatch SMS.`)) {
+                                    handleStandbyCascade(req);
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-2xs w-full justify-center"
+                                title="1-Tap Waterfall Cascade: Instantly swap to Standby Backup and dispatch SMS"
+                              >
+                                <span>⚡ Cascade to Standby</span>
+                              </button>
+                            )}
+
+                            {/* 3. Director Phone Call Override */}
+                            {!isConfirmed && (
+                              <button
+                                onClick={() => {
+                                  setPhoneLogRequestId(req.id);
+                                  setPhoneLogNotes(`Director phoned ${req.partnerName} (${req.partnerPhone}) directly. Vendor confirmed on-time arrival for ${req.serviceDate} at ${req.callTime}.`);
+                                }}
+                                className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-300 font-bold rounded-lg text-xs transition flex items-center gap-1 w-full justify-center"
+                                title="Log Director direct verbal phone call confirmation"
+                              >
+                                <Phone className="w-3 h-3 text-[#991b1b]" />
+                                <span>Log Director Call</span>
+                              </button>
+                            )}
+
+                            {/* 4. Quick Nudge Reminder */}
+                            {!isConfirmed && (
+                              <button
+                                onClick={() => onSimulateReminder(req.id)}
+                                className="px-2 py-0.5 text-[10px] text-neutral-600 hover:text-[#991b1b] font-medium flex items-center gap-1"
+                                title="Trigger next scheduled SMS reminder"
+                              >
+                                <RefreshCw className="w-2.5 h-2.5" />
+                                <span>Nudge (#{req.remindersCount + 1})</span>
+                              </button>
+                            )}
+
+                            {/* 5. Quick Simulate Confirm */}
+                            {!isConfirmed && (
+                              <button
+                                onClick={() => onSimulateConfirm(req.id)}
+                                className="px-2 py-0.5 text-[10px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1"
+                                title="Simulate partner replying YES"
+                              >
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Simulate "YES"</span>
+                              </button>
+                            )}
+
+                          </div>
+                        </td>
+
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* 3A. SUB-VIEW: BFH OFFICIAL DIRECTORS & STAFF               */}
@@ -1382,20 +1822,70 @@ Gregory Hall,Licensed Trade Funeral Director,outside_director,(917) 555-6623,gha
                 </select>
               </div>
 
-              {/* Select Service Partner */}
-              <div>
-                <label className="block text-neutral-700 font-bold mb-1">Select Professional / Service Partner *</label>
-                <select
-                  value={dispatchPartnerId}
-                  onChange={(e) => setDispatchPartnerId(e.target.value)}
-                  className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 font-bold text-neutral-900 outline-none focus:border-[#991b1b]"
-                >
-                  {partners.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.fullName} — {p.roleTitle} ({p.phone}) [{p.rateInfo || 'Standard'}]
-                    </option>
+              {/* Primary & Standby Partner Selectors Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-neutral-700 font-bold mb-1">Select Primary Service Partner *</label>
+                  <select
+                    value={dispatchPartnerId}
+                    onChange={(e) => setDispatchPartnerId(e.target.value)}
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 font-bold text-neutral-900 outline-none focus:border-[#991b1b]"
+                  >
+                    {partners.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fullName} — {p.roleTitle} ({p.phone}) [{p.rateInfo || 'Standard'}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-neutral-700 font-bold mb-1">
+                    Pre-Assigned Standby Backup Partner *
+                  </label>
+                  <select
+                    value={dispatchStandbyPartnerId}
+                    onChange={(e) => setDispatchStandbyPartnerId(e.target.value)}
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 font-bold text-neutral-900 outline-none focus:border-[#991b1b]"
+                  >
+                    {partners.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        🛡️ {p.fullName} — {p.roleTitle} ({p.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* SLA Response Deadline Setting */}
+              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+                <label className="block text-amber-950 font-bold text-xs">
+                  SLA Response Deadline & Auto-Escalation Window *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { hours: 2, label: '⚡ 2h (Ceremony < 48h)' },
+                    { hours: 4, label: '⏱ 4h (Standard)' },
+                    { hours: 8, label: '📅 8h (Same Day)' },
+                    { hours: 24, label: '🗓 24h (Advance)' }
+                  ].map(sla => (
+                    <button
+                      key={sla.hours}
+                      type="button"
+                      onClick={() => setDispatchSlaHours(sla.hours)}
+                      className={`p-2 rounded-lg text-xs font-bold transition border text-center ${
+                        dispatchSlaHours === sla.hours
+                          ? 'bg-[#991b1b] text-white border-[#991b1b] shadow-xs'
+                          : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {sla.label}
+                    </button>
                   ))}
-                </select>
+                </div>
+                <p className="text-[10px] text-amber-900 font-light">
+                  If vendor does not reply "YES" within {dispatchSlaHours} hours, an alert strobes on the Director's dashboard and 1-tap Standby Cascade is activated.
+                </p>
               </div>
 
               {/* Date & Time Grid */}
@@ -1716,19 +2206,19 @@ Gregory Hall,Licensed Trade Funeral Director,outside_director,(917) 555-6623,gha
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-neutral-700 mb-1">SMS Phone Number *</label>
+                  <label className="block font-bold text-neutral-700 mb-1">SMS Phone Number (Numbers Only) *</label>
                   <input
-                    type="text"
+                    type="tel"
                     required
                     value={newPartnerPhone}
-                    onChange={(e) => setNewPartnerPhone(e.target.value)}
+                    onChange={(e) => setNewPartnerPhone(formatPhoneNumbersOnly(e.target.value))}
                     placeholder="(212) 555-0199"
-                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-lg p-2.5 outline-none focus:border-[#991b1b]"
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-lg p-2.5 outline-none focus:border-[#991b1b] font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-neutral-700 mb-1">Email (Optional)</label>
+                  <label className="block font-bold text-neutral-700 mb-1">Email (Optional - Valid Format)</label>
                   <input
                     type="email"
                     value={newPartnerEmail}
@@ -1879,6 +2369,112 @@ Gregory Hall,Licensed Trade Funeral Director,outside_director,(917) 555-6623,gha
           </div>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* 8. MODAL: DIRECTOR VERBAL PHONE CALL LOG & CONFIRMATION   */}
+      {/* ========================================================= */}
+      {phoneLogRequestId && (() => {
+        const reqToLog = requests.find(r => r.id === phoneLogRequestId);
+        if (!reqToLog) return null;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white border border-neutral-200 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-neutral-900 animate-fadeIn">
+              <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-red-50 text-[#991b1b] rounded-xl border border-red-200">
+                    <Phone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif-title font-bold text-base text-neutral-900">
+                      Log Director Verbal Phone Call & Confirm
+                    </h3>
+                    <p className="text-[11px] text-neutral-500 font-mono">
+                      Case #{reqToLog.caseNumber} • {reqToLog.decedentName}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPhoneLogRequestId(null)}
+                  className="text-neutral-400 hover:text-neutral-900"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Service Partner:</span>
+                  <strong className="text-neutral-900">{reqToLog.partnerName} ({reqToLog.roleTitle})</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Direct Phone:</span>
+                  <a href={`tel:${reqToLog.partnerPhone}`} className="font-mono text-[#991b1b] font-bold hover:underline">
+                    {reqToLog.partnerPhone}
+                  </a>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Service Schedule:</span>
+                  <span className="font-semibold text-neutral-800">{reqToLog.serviceDate} at {reqToLog.callTime}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleLogDirectorPhoneCall} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-neutral-700 mb-1">
+                    Licensed Director / Staff Caller Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={phoneLogCallerName}
+                    onChange={(e) => setPhoneLogCallerName(e.target.value)}
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 font-bold outline-none focus:border-[#991b1b]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-neutral-700 mb-1">
+                    Verbal Conversation Notes & Confirmation Details *
+                  </label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={phoneLogNotes}
+                    onChange={(e) => setPhoneLogNotes(e.target.value)}
+                    placeholder="Enter details of verbal conversation, confirmed arrival time, and special instructions agreed upon..."
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 outline-none focus:border-[#991b1b] leading-relaxed"
+                  />
+                </div>
+
+                <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Submitting will immediately mark this service request as <strong>CONFIRMED</strong>, clear SLA overdue alerts, and log an official entry into the Golden Record ledger.
+                  </span>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-neutral-200">
+                  <button
+                    type="button"
+                    onClick={() => setPhoneLogRequestId(null)}
+                    className="px-4 py-2 text-neutral-600 hover:text-neutral-900 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-sm border border-amber-300/40 flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Confirm & Log to Case Ledger</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

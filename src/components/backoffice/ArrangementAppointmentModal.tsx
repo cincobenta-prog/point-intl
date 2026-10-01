@@ -21,7 +21,8 @@ import {
   Video,
   Home,
   ScrollText,
-  Copy
+  Copy,
+  Truck
 } from 'lucide-react';
 
 interface ArrangementAppointmentModalProps {
@@ -34,6 +35,7 @@ interface ArrangementAppointmentModalProps {
   onSendNotification?: (notif: SimulatedNotification) => void;
   onOpenCalendar?: () => void;
   onOpenContractModal?: () => void;
+  onOpenRemovalModal?: (c: GoldenRecordCase) => void;
 }
 
 export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalProps> = ({
@@ -45,7 +47,8 @@ export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalPr
   onSaveAppointment,
   onSendNotification,
   onOpenCalendar,
-  onOpenContractModal
+  onOpenContractModal,
+  onOpenRemovalModal
 }) => {
   const caseData = directCaseData || activeCase!;
   const existingAppt = caseData?.arrangementAppointment;
@@ -355,6 +358,47 @@ export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalPr
             </button>
           </div>
 
+        </div>
+
+        {/* BI-DIRECTIONAL INFORMATION BRIDGE BANNER */}
+        <div className="bg-gradient-to-r from-neutral-900 via-neutral-950 to-[#b45309] text-white px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs border-b border-amber-400/20 shrink-0">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-400/30 uppercase tracking-wider">
+              Bi-Directional Case Bridge
+            </span>
+            <span className="text-neutral-300 text-[11px]">
+              Arrangement ➔ Removal Flow • Safe Arrival: <strong className="text-white">{caseData.safeArrivalStatus === 'safe_arrival_confirmed' ? '✓ Confirmed (630 St. Nicholas)' : caseData.safeArrivalStatus === 'in_transit' ? '🚐 En Route' : '🚨 Pending Removal'}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {caseData.safeArrivalStatus === 'safe_arrival_confirmed' ? (
+              <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded border border-emerald-400/30 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>Custody Secured at BFH</span>
+              </span>
+            ) : (
+              <span className="text-[11px] text-amber-300 font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-400/20">
+                <Truck className="w-3 h-3 text-amber-300" />
+                <span>{caseData.removalSchedule?.facilityName || caseData.decedent.facilityName || 'Facility Pickup Ready'}</span>
+              </span>
+            )}
+
+            {onOpenRemovalModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenRemovalModal(caseData);
+                }}
+                className="bg-red-800 hover:bg-red-700 text-white font-bold text-xs px-3 py-1 rounded-lg shadow-sm flex items-center gap-1.5 transition border border-red-400/40"
+                title="Dispatch First Call Removal Logistics with pre-filled facility and physician details from this arrangement"
+              >
+                <Truck className="w-3.5 h-3.5 text-amber-200" />
+                <span>➔ Dispatch Removal (Pre-filled)</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Navigation Tabs */}
@@ -836,6 +880,21 @@ export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalPr
                   {/* 1-Click Operational Action Buttons */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-200">
                     <div className="flex flex-wrap items-center gap-2">
+                      {onOpenRemovalModal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onOpenRemovalModal(caseData);
+                          }}
+                          className="px-4 py-2.5 bg-red-800 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm border border-red-400/40"
+                          title="Dispatch First Call Removal Logistics with pre-filled facility and physician details from this arrangement"
+                        >
+                          <Truck className="w-3.5 h-3.5 text-amber-200" />
+                          <span>Dispatch Removal Logistics (Pre-filled)</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={handleSendDirectionsSMS}

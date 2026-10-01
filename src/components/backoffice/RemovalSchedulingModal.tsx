@@ -31,7 +31,8 @@ import {
   Heart,
   Check,
   Radio,
-  Share2
+  Share2,
+  Calendar
 } from 'lucide-react';
 
 interface RemovalSchedulingModalProps {
@@ -41,6 +42,8 @@ interface RemovalSchedulingModalProps {
   cases: GoldenRecordCase[];
   onSaveRemoval: (caseId: string, updatedRemoval: RemovalScheduleInfo) => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
+  onOpenAppointmentModal?: (c: GoldenRecordCase) => void;
+  onOpenContractModal?: (c: GoldenRecordCase) => void;
 }
 
 export const RemovalSchedulingModal: React.FC<RemovalSchedulingModalProps> = ({
@@ -49,7 +52,9 @@ export const RemovalSchedulingModal: React.FC<RemovalSchedulingModalProps> = ({
   activeCase,
   cases,
   onSaveRemoval,
-  onSendNotification
+  onSendNotification,
+  onOpenAppointmentModal,
+  onOpenContractModal: _onOpenContractModal
 }) => {
   if (!isOpen) return null;
 
@@ -348,6 +353,48 @@ export const RemovalSchedulingModal: React.FC<RemovalSchedulingModalProps> = ({
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* BI-DIRECTIONAL INFORMATION BRIDGE BANNER */}
+        <div className="bg-gradient-to-r from-neutral-900 via-neutral-950 to-[#991b1b] text-white px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs border-b border-amber-400/20 shrink-0">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-400/30 uppercase tracking-wider">
+              Bi-Directional Case Bridge
+            </span>
+            <span className="text-neutral-300 text-[11px]">
+              Removal ➔ Family Arrangement Flow • Safe Arrival: <strong className="text-white">{currentCase.safeArrivalStatus === 'safe_arrival_confirmed' ? '✓ Confirmed (630 St. Nicholas)' : currentCase.safeArrivalStatus === 'in_transit' ? '🚐 En Route' : '🚨 Pending Removal'}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {currentCase.arrangementAppointment?.status === 'confirmed' ? (
+              <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>Arrangement Booked: {currentCase.arrangementAppointment.confirmedSlot?.date} ({currentCase.arrangementAppointment.confirmedSlot?.time})</span>
+              </span>
+            ) : (
+              <span className="text-[11px] text-amber-300 font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-400/20">
+                <span>Arrangement Conference Pending</span>
+              </span>
+            )}
+
+            {onOpenAppointmentModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = buildCurrentRemovalSchedule();
+                  onSaveRemoval(currentCase.id, updated);
+                  onClose();
+                  onOpenAppointmentModal(currentCase);
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1 rounded-lg shadow-sm flex items-center gap-1.5 transition border border-amber-300/40"
+                title="Transfer all decedent, informant, and safe arrival information to the Arrangement Conference Studio"
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-200" />
+                <span>➔ Transfer to Arrangement Studio</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -823,7 +870,22 @@ export const RemovalSchedulingModal: React.FC<RemovalSchedulingModalProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {onOpenAppointmentModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = buildCurrentRemovalSchedule();
+                        onSaveRemoval(currentCase.id, updated);
+                        onClose();
+                        onOpenAppointmentModal(currentCase);
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition shadow-md flex items-center gap-1.5 border border-amber-300/40"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-amber-200" />
+                      <span>➔ Transfer to Arrangement</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setActiveTab('sms')}
                     className="bg-neutral-800 hover:bg-neutral-900 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"

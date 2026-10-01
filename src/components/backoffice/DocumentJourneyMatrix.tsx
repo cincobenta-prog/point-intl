@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GoldenRecordCase, DocumentItem, DocumentStatus, BFHFormType } from '../../lib/types/funeral';
+import { GoldenRecordCase, DocumentItem, DocumentStatus, BFHFormType, ClothingChecklistData, JewelryItemSpec } from '../../lib/types/funeral';
 import { getDefaultStatementOfGoodsForCase } from '../../lib/data/generalPriceList';
 import { 
   FileText, 
@@ -13,22 +13,199 @@ import {
   Check, 
   X,
   FileCheck2,
-  Lock
+  Lock,
+  Sparkles,
+  Plus,
+  Trash2,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 
 interface DocumentJourneyMatrixProps {
   caseData: GoldenRecordCase;
   onUpdateDocumentStatus: (docId: string, newStatus: DocumentStatus) => void;
   onOpenESign: (doc?: DocumentItem) => void;
+  onUpdateCase?: (updatedCase: GoldenRecordCase) => void;
 }
 
 export const DocumentJourneyMatrix: React.FC<DocumentJourneyMatrixProps> = ({
   caseData,
   onUpdateDocumentStatus,
-  onOpenESign
+  onOpenESign,
+  onUpdateCase
 }) => {
   const [selectedPhase, setSelectedPhase] = useState<string>('all');
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
+  const [clothingSavedToast, setClothingSavedToast] = useState(false);
+
+  // Initialized Clothing Submittal Form State (Interactive & Editable)
+  const [clothingData, setClothingData] = useState<ClothingChecklistData>(() => {
+    if (caseData.clothingSubmittal) {
+      return caseData.clothingSubmittal;
+    }
+    return {
+      socks: true,
+      socksNotes: 'Black dress socks / stockings',
+      pants: true,
+      pantsNotes: 'Navy blue wool dress trousers',
+      shirt: true,
+      shirtNotes: 'White French cuff dress shirt',
+      underwear: true,
+      underwearNotes: 'Full undergarment set / undershirt',
+      shoes: true,
+      shoesNotes: 'Black polished Oxford dress shoes (Size 10.5M)',
+      dress: false,
+      dressNotes: '',
+      panties: false,
+      pantiesNotes: '',
+      wig: false,
+      wigNotes: '',
+      jacket: true,
+      jacketNotes: 'Navy blue 2-button suit jacket with gold lapel pin',
+      tie: true,
+      tieNotes: 'Navy and gold silk necktie',
+      pocketSquare: true,
+      pocketSquareNotes: 'Burgundy silk pocket square',
+      jewelryList: [
+        { id: 'j-1', item: 'Watch / Timepiece', description: 'Vintage Gold Pocket Watch', checked: true, disposition: 'return_to_family' },
+        { id: 'j-2', item: 'Ring(s) / Wedding Band', description: '14k Gold Band on left ring finger', checked: true, disposition: 'remain_on_decedent' },
+        { id: 'j-3', item: 'Necklace / Chain', description: 'Gold Figaro chain with cross', checked: false, disposition: 'remain_on_decedent' },
+        { id: 'j-4', item: 'Earrings', description: 'Pearl stud earrings', checked: false, disposition: 'remain_on_decedent' },
+        { id: 'j-5', item: 'Bracelet', description: 'Silver link bracelet', checked: false, disposition: 'remain_on_decedent' },
+        { id: 'j-6', item: 'Rosary / Blessed Beads', description: 'Handmade Black Rosary', checked: true, disposition: 'remain_on_decedent' },
+        { id: 'j-7', item: 'Eyeglasses / Reading Glasses', description: 'Gold-rimmed reading glasses (Display for viewing, remove prior to service)', checked: true, disposition: 'return_to_family' },
+        { id: 'j-8', item: 'Lapel Pins / Medals', description: 'U.S. Veteran Ribbons & Masonic Pin', checked: true, disposition: 'remain_on_decedent' }
+      ],
+      customItems: [],
+      casketNumber: 'CSK-8819-CH',
+      casketName: 'The St. Nicholas Heritage Casket',
+      namePlate: true,
+      hairdresserAssigned: true,
+      hairdresserName: 'Kelvin Brooks (646-508-3474)',
+      cosmeticsNotes: 'Natural tones, warm complexion styling. Family provided reference portrait photo for hairline taper fade.',
+      deliveredBy: caseData.informant.fullName || 'Family Representative',
+      deliveredByPhone: caseData.informant.phone || '(212) 555-0198',
+      receivedByDirector: caseData.assignedDirector || 'Jason Benta (Director in Charge)',
+      dateReceived: caseData.createdAt.split('T')[0],
+      isCompleted: false,
+      lastUpdated: undefined
+    };
+  });
+
+  const [newCustomJewelryName, setNewCustomJewelryName] = useState('');
+  const [newCustomJewelryDesc, setNewCustomJewelryDesc] = useState('');
+  const [newCustomJewelryDisp, setNewCustomJewelryDisp] = useState<'remain_on_decedent' | 'return_to_family'>('remain_on_decedent');
+
+  const handleSaveClothingSubmittal = () => {
+    const updatedClothing: ClothingChecklistData = {
+      ...clothingData,
+      isCompleted: true,
+      lastUpdated: new Date().toLocaleString()
+    };
+    setClothingData(updatedClothing);
+
+    // Update document status in case
+    const updatedDocuments = caseData.documents.map(d => {
+      if (d.formType === 'clothing_transmittal') {
+        return {
+          ...d,
+          status: 'completed' as DocumentStatus,
+          lastUpdated: new Date().toLocaleString()
+        };
+      }
+      return d;
+    });
+
+    const docTarget = caseData.documents.find(d => d.formType === 'clothing_transmittal');
+    if (docTarget) {
+      onUpdateDocumentStatus(docTarget.id, 'completed');
+    }
+
+    if (onUpdateCase) {
+      onUpdateCase({
+        ...caseData,
+        clothingSubmittal: updatedClothing,
+        documents: updatedDocuments
+      });
+    }
+
+    setClothingSavedToast(true);
+    setTimeout(() => setClothingSavedToast(false), 4000);
+  };
+
+  const handleAddCustomJewelry = () => {
+    if (!newCustomJewelryName.trim()) return;
+    const newItem: JewelryItemSpec = {
+      id: `j-custom-${Date.now()}`,
+      item: newCustomJewelryName.trim(),
+      description: newCustomJewelryDesc.trim() || 'Family personal item',
+      checked: true,
+      disposition: newCustomJewelryDisp
+    };
+    setClothingData(prev => ({
+      ...prev,
+      jewelryList: [...prev.jewelryList, newItem]
+    }));
+    setNewCustomJewelryName('');
+    setNewCustomJewelryDesc('');
+  };
+
+  const handleRemoveJewelry = (id: string) => {
+    setClothingData(prev => ({
+      ...prev,
+      jewelryList: prev.jewelryList.filter(j => j.id !== id)
+    }));
+  };
+
+  const applySuitPreset = () => {
+    setClothingData(prev => ({
+      ...prev,
+      socks: true,
+      pants: true,
+      shirt: true,
+      underwear: true,
+      shoes: true,
+      dress: false,
+      panties: false,
+      wig: false,
+      jacket: true,
+      tie: true,
+      pocketSquare: true
+    }));
+  };
+
+  const applyDressPreset = () => {
+    setClothingData(prev => ({
+      ...prev,
+      socks: true,
+      dress: true,
+      panties: true,
+      underwear: true,
+      shoes: true,
+      wig: true,
+      pants: false,
+      jacket: false,
+      tie: false,
+      pocketSquare: false
+    }));
+  };
+
+  const handleToggleAllGarments = (checked: boolean) => {
+    setClothingData(prev => ({
+      ...prev,
+      socks: checked,
+      pants: checked,
+      shirt: checked,
+      underwear: checked,
+      shoes: checked,
+      dress: checked,
+      panties: checked,
+      wig: checked,
+      jacket: checked,
+      tie: checked,
+      pocketSquare: checked
+    }));
+  };
 
   const filteredDocs = caseData.documents.filter(doc => {
     if (selectedPhase === 'all') return true;
@@ -733,96 +910,683 @@ export const DocumentJourneyMatrix: React.FC<DocumentJourneyMatrixProps> = ({
         );
 
       // -------------------------------------------------------------
-      // FORM 5: CLOTHING TRANSMITTAL FORM
+      // FORM 5: CLOTHING & DRESSING TRANSMITTAL SUBMITTAL FORM (EDITABLE)
       // -------------------------------------------------------------
       case 'clothing_transmittal':
         return (
-          <div className="space-y-6 text-neutral-900 font-sans text-xs bg-white p-6 sm:p-8 rounded-xl border border-neutral-300 shadow-sm print:p-0 print:border-none">
-            {/* Header */}
-            <div className="flex justify-between items-center border-b-2 border-neutral-900 pb-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-full bg-[#991b1b] text-white flex items-center justify-center font-bold">B</div>
-                <span className="font-serif-title font-bold text-base text-neutral-900">BENTA'S Funeral Home, Inc.</span>
+          <div className="space-y-6 text-neutral-900 font-sans text-xs bg-white p-6 sm:p-8 rounded-2xl border border-neutral-300 shadow-sm print:p-0 print:border-none">
+            
+            {/* Success Toast / Notification Banner */}
+            {clothingSavedToast && (
+              <div className="bg-emerald-600 text-white p-3.5 rounded-xl shadow-lg flex items-center justify-between animate-fadeIn">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-100" />
+                  <div>
+                    <strong className="block text-xs font-bold">Clothing Submittal Saved & Transmitted</strong>
+                    <span className="text-[11px] text-emerald-100">
+                      Garment specifications and jewelry dispositions recorded in the Golden Record preparation suite.
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-700/80 px-2.5 py-1 rounded-full font-mono">
+                  Status: Completed ✓
+                </span>
               </div>
-              <h3 className="font-serif-title font-bold text-base tracking-widest text-[#991b1b] uppercase">
-                CLOTHING TRANSMITTAL
-              </h3>
-            </div>
+            )}
 
-            {/* Metadata Box */}
-            <div className="grid grid-cols-3 gap-3 border border-neutral-200 p-3 rounded-xl text-xs">
-              <div><span className="text-[10px] text-neutral-500 block">Date:</span> <strong>{caseData.createdAt.split('T')[0]}</strong></div>
-              <div><span className="text-[10px] text-neutral-500 block">Funeral Director:</span> <strong>{caseData.assignedDirector}</strong></div>
-              <div><span className="text-[10px] text-neutral-500 block">Case #:</span> <strong className="font-mono">{caseData.caseNumber}</strong></div>
-              <div className="col-span-3 border-t border-neutral-100 pt-2"><span className="text-[10px] text-neutral-500 block">Name of Deceased:</span> <strong className="text-sm">{caseData.decedent.legalName}</strong></div>
-            </div>
+            {/* Form Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-2 border-neutral-900 pb-4 gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-[#991b1b] text-white flex items-center justify-center font-serif-title font-bold text-base shadow-sm">
+                  B
+                </div>
+                <div>
+                  <h3 className="font-serif-title font-bold text-lg text-neutral-900">
+                    BENTA'S FUNERAL HOME, INC.
+                  </h3>
+                  <p className="text-[11px] text-neutral-500 font-medium">
+                    630 St. Nicholas Ave, New York, NY 10030 • Preparation & Dressing Department
+                  </p>
+                </div>
+              </div>
 
-            {/* Casket Information */}
-            <div className="border border-neutral-200 p-3.5 rounded-xl space-y-2">
-              <span className="font-bold text-xs uppercase text-[#991b1b] block">Casket Information:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div><span className="text-[10px] text-neutral-500 block">Casket Number:</span> <strong className="font-mono">CSK-8819-CH</strong></div>
-                <div><span className="text-[10px] text-neutral-500 block">Casket Name:</span> <strong>St. Nicholas Cherry</strong></div>
-                <div><span className="text-[10px] text-neutral-500 block">Name Plate:</span> <strong className="text-emerald-700">✓ Yes [ ] No</strong></div>
-                <div><span className="text-[10px] text-neutral-500 block">Hairdresser Assigned:</span> <strong className="text-emerald-700">✓ Yes [ ] No</strong></div>
+              <div className="text-right">
+                <h4 className="font-bold text-base tracking-widest text-[#991b1b] font-serif-title uppercase">
+                  CLOTHING TRANSMITTAL & JEWELRY LOG
+                </h4>
+                <div className="flex items-center justify-end space-x-2 mt-1">
+                  <span className="font-mono text-xs text-neutral-600 font-bold">Case: {caseData.caseNumber}</span>
+                  {clothingData.isCompleted && (
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      Completed ✓
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* 12-Row Items Sent Table */}
-            <div className="space-y-1.5">
-              <span className="font-bold text-xs uppercase text-neutral-900 block">Items Sent for Preparation & Dressing:</span>
-              <table className="w-full text-left text-xs border border-neutral-300 rounded-lg overflow-hidden">
-                <thead className="bg-neutral-100 border-b border-neutral-300 text-[10px] font-bold text-neutral-600 uppercase">
-                  <tr>
-                    <th className="p-2 w-10 text-center">#</th>
-                    <th className="p-2">Item Description & Specifications</th>
-                    <th className="p-2 w-28 text-right">Received</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200">
-                  {[
-                    'Navy Blue 3-Piece Wool Suit with Gold Lapel Pin',
-                    'White French Cuff Dress Shirt & Navy Silk Tie',
-                    'Complete Undergarment Set (Vest, Undershirt, Socks)',
-                    'Black Polished Oxford Dress Shoes',
-                    'Gold Wedding Band (To remain on left ring finger)',
-                    'Vintage Gold Pocket Watch (Display during viewing, remove prior to Woodlawn)',
-                    'Gold-Rimmed Reading Glasses',
-                    'U.S. Navy Veteran Medals Ribbon Bar (Affixed to left lapel)',
-                    'Family Reference Portrait Photo for Hairstyling (Taper fade & trim)',
-                    'Custom Silk Pocket Square (Burgundy Accent)',
-                    'Handmade Rosary & Blessed Prayer Beads',
-                    'Personal Keepsake Letter from Grandchildren'
-                  ].map((item, i) => (
-                    <tr key={i} className="hover:bg-neutral-50">
-                      <td className="p-2 text-center font-mono text-neutral-500 font-bold">{i + 1}</td>
-                      <td className="p-2 font-medium text-neutral-800">{item}</td>
-                      <td className="p-2 text-right text-emerald-700 font-bold">✓ Checked In</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Quick Presets & Form Toolbar */}
+            <div className="bg-[#fcfbfa] p-3.5 rounded-xl border border-neutral-200 flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold uppercase text-neutral-600 mr-1 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  Quick Presets:
+                </span>
+                <button
+                  type="button"
+                  onClick={applySuitPreset}
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 rounded-lg border border-neutral-300 text-xs font-semibold transition shadow-2xs"
+                >
+                  🎩 Men's Full Suit Ensemble
+                </button>
+                <button
+                  type="button"
+                  onClick={applyDressPreset}
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 rounded-lg border border-neutral-300 text-xs font-semibold transition shadow-2xs"
+                >
+                  👗 Women's Dress & Gown Ensemble
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllGarments(true)}
+                  className="px-2.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg border border-neutral-300 text-[11px] font-medium transition"
+                >
+                  ✓ Check All
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg border border-neutral-300 text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Form</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveClothingSubmittal}
+                  className="px-4 py-1.5 bg-[#991b1b] hover:bg-red-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-sm border border-amber-300/40"
+                >
+                  <Save className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Save & Finalize Transmittal</span>
+                </button>
+              </div>
             </div>
 
-            {/* Viewing & Funeral Location Information */}
-            <div className="border border-neutral-200 p-3.5 rounded-xl space-y-2 text-xs">
-              <span className="font-bold text-xs uppercase text-[#991b1b] block">Viewing & Funeral Schedule:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <div><span className="text-[10px] text-neutral-500 block">Date of First Viewing:</span> <strong>{caseData.serviceSelections.serviceDate || '2026-09-21'}</strong></div>
-                <div><span className="text-[10px] text-neutral-500 block">Time of First Viewing:</span> <strong>04:00 PM – 07:00 PM</strong></div>
-                <div><span className="text-[10px] text-neutral-500 block">Date of Funeral:</span> <strong>{caseData.serviceSelections.serviceDate || '2026-09-22'} (11:00 AM)</strong></div>
+            {/* Case & Decedent Metadata Box */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-neutral-50 p-3.5 rounded-xl border border-neutral-200 text-xs">
+              <div>
+                <span className="text-[10px] text-neutral-500 block uppercase font-bold">Name of Deceased:</span>
+                <strong className="text-sm text-neutral-900 font-serif-title">{caseData.decedent.legalName}</strong>
               </div>
-              <div className="pt-2 border-t border-neutral-100 flex items-center space-x-3">
-                <span className="text-[10px] text-neutral-500 uppercase font-bold">Location:</span>
-                <span className="font-bold text-neutral-900 bg-red-50 text-[#991b1b] px-2 py-0.5 rounded border border-red-200">
-                  [✓] Chapel I &nbsp; [ ] Chapel II &nbsp; [ ] ABC &nbsp; [ ] Other
+              <div>
+                <span className="text-[10px] text-neutral-500 block uppercase font-bold">Service Date:</span>
+                <strong className="text-neutral-800">{caseData.serviceSelections.serviceDate || 'Pending Schedule'}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-500 block uppercase font-bold">Funeral Director:</span>
+                <strong className="text-neutral-800">{clothingData.receivedByDirector || caseData.assignedDirector}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-500 block uppercase font-bold">Case Status:</span>
+                <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                  Preparation & Dressing Hub
                 </span>
               </div>
             </div>
 
-            <p className="text-[10px] text-center text-neutral-400 font-serif italic">
-              Proprietary Property of Benta's Funeral Home, Inc.
-            </p>
+            {/* ----------------------------------------------------------- */}
+            {/* SECTION 1: CLOTHING & GARMENT CHECK-OFFS (EDITABLE)         */}
+            {/* ----------------------------------------------------------- */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center border-b border-neutral-200 pb-1.5">
+                <span className="font-bold text-xs uppercase text-neutral-900 tracking-wider">
+                  1. Garments & Apparel Received Check-Offs:
+                </span>
+                <span className="text-[11px] text-neutral-500">
+                  Select all items delivered by the family for dressing.
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                
+                {/* Socks */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.socks ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.socks}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, socks: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">🧦 Socks / Stockings</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.socksNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, socksNotes: e.target.value }))}
+                    placeholder="e.g. Black dress socks, sheer stockings"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Pants */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.pants ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.pants}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, pants: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">👖 Pants / Slacks / Trousers</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.pantsNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, pantsNotes: e.target.value }))}
+                    placeholder="e.g. Navy blue wool trousers, charcoal slacks"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Shirt */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.shirt ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.shirt}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, shirt: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">👔 Shirt / Blouse</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.shirtNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, shirtNotes: e.target.value }))}
+                    placeholder="e.g. White French cuff dress shirt, silk blouse"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Underwear */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.underwear ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.underwear}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, underwear: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">🩲 Underwear / Undershirt</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.underwearNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, underwearNotes: e.target.value }))}
+                    placeholder="e.g. Complete undergarment set, cotton undershirt"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Shoes */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.shoes ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.shoes}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, shoes: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">👞 Shoes / Footwear</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.shoesNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, shoesNotes: e.target.value }))}
+                    placeholder="e.g. Black polished Oxfords, white satin slippers"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Dress (deass) */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.dress ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.dress}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, dress: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">👗 Dress / Gown / Robe</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.dressNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, dressNotes: e.target.value }))}
+                    placeholder="e.g. Royal blue formal gown, church Sunday dress"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Panties (pantes) */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.panties ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.panties}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, panties: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">🩱 Panties / Slips</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.pantiesNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, pantiesNotes: e.target.value }))}
+                    placeholder="e.g. Full slip, undergarments"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Wig */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.wig ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.wig}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, wig: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">💇 Wig / Hairpiece</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.wigNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, wigNotes: e.target.value }))}
+                    placeholder="e.g. Short brown wave wig, attached styling pins"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Jacket */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.jacket ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.jacket}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, jacket: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">🧥 Suit Jacket / Blazer</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.jacketNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, jacketNotes: e.target.value }))}
+                    placeholder="e.g. Navy 2-button jacket, black tuxedo coat"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Tie */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.tie ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.tie}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, tie: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">👔 Tie / Bowtie</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.tieNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, tieNotes: e.target.value }))}
+                    placeholder="e.g. Navy & gold silk necktie, black silk bowtie"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                {/* Pocket Square */}
+                <div className={`p-2.5 rounded-xl border transition ${clothingData.pocketSquare ? 'bg-emerald-50/70 border-emerald-500/60 ring-1 ring-emerald-500/30' : 'bg-white border-neutral-200'}`}>
+                  <label className="flex items-center space-x-2 cursor-pointer mb-1.5">
+                    <input
+                      type="checkbox"
+                      checked={clothingData.pocketSquare}
+                      onChange={(e) => setClothingData(prev => ({ ...prev, pocketSquare: e.target.checked }))}
+                      className="rounded text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="font-bold text-neutral-900 text-xs">🔲 Pocket Square / Handkerchief</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clothingData.pocketSquareNotes || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, pocketSquareNotes: e.target.value }))}
+                    placeholder="e.g. Burgundy accent silk square, white linen"
+                    className="w-full bg-white border border-neutral-300 rounded p-1.5 text-[11px] text-neutral-800 outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            {/* ----------------------------------------------------------- */}
+            {/* SECTION 2: JEWELRY & PERSONAL EFFECTS LOG (ITEMIZED & DISPOSITION) */}
+            {/* ----------------------------------------------------------- */}
+            <div className="space-y-3 pt-2 border-t border-neutral-200">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <div>
+                  <span className="font-bold text-xs uppercase text-[#991b1b] tracking-wider block">
+                    2. Jewelry & Personal Effects Inventory & Disposition:
+                  </span>
+                  <p className="text-[11px] text-neutral-500">
+                    Explicit instructions for each piece of jewelry: Remain with loved one vs. Return to family prior to committal.
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono font-bold text-neutral-600 bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200">
+                  {clothingData.jewelryList.filter(j => j.checked).length} Items Received
+                </span>
+              </div>
+
+              {/* Jewelry Table */}
+              <div className="border border-neutral-300 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-neutral-100 border-b border-neutral-300 text-[10px] font-bold text-neutral-600 uppercase">
+                    <tr>
+                      <th className="p-2.5 w-12 text-center">Status</th>
+                      <th className="p-2.5 w-40">Jewelry / Effect Category</th>
+                      <th className="p-2.5">Item Description & Markings</th>
+                      <th className="p-2.5 w-64 text-center">Disposition Instruction</th>
+                      <th className="p-2.5 w-10 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200 bg-white">
+                    {clothingData.jewelryList.map((jItem) => (
+                      <tr key={jItem.id} className={jItem.checked ? 'hover:bg-neutral-50/80' : 'bg-neutral-50/50 text-neutral-400'}>
+                        <td className="p-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={jItem.checked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setClothingData(prev => ({
+                                ...prev,
+                                jewelryList: prev.jewelryList.map(j => j.id === jItem.id ? { ...j, checked } : j)
+                              }));
+                            }}
+                            className="rounded text-emerald-700 focus:ring-emerald-600"
+                          />
+                        </td>
+                        <td className="p-2.5 font-bold text-neutral-900">
+                          {jItem.item}
+                        </td>
+                        <td className="p-2.5">
+                          <input
+                            type="text"
+                            value={jItem.description || ''}
+                            onChange={(e) => {
+                              const description = e.target.value;
+                              setClothingData(prev => ({
+                                ...prev,
+                                jewelryList: prev.jewelryList.map(j => j.id === jItem.id ? { ...j, description } : j)
+                              }));
+                            }}
+                            placeholder="Enter description, metal type, stones, markings..."
+                            className="w-full bg-white border border-neutral-300 rounded px-2 py-1 text-xs text-neutral-800 outline-none focus:border-[#991b1b]"
+                          />
+                        </td>
+                        <td className="p-2.5">
+                          <div className="flex items-center justify-center space-x-3">
+                            <label className={`flex items-center space-x-1 cursor-pointer text-[11px] px-2 py-1 rounded border transition ${
+                              jItem.disposition === 'remain_on_decedent'
+                                ? 'bg-amber-50 border-amber-300 text-amber-900 font-bold'
+                                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                            }`}>
+                              <input
+                                type="radio"
+                                name={`disp-${jItem.id}`}
+                                value="remain_on_decedent"
+                                checked={jItem.disposition === 'remain_on_decedent'}
+                                onChange={() => {
+                                  setClothingData(prev => ({
+                                    ...prev,
+                                    jewelryList: prev.jewelryList.map(j => j.id === jItem.id ? { ...j, disposition: 'remain_on_decedent' } : j)
+                                  }));
+                                }}
+                                className="text-amber-700"
+                              />
+                              <span>Remain with Deceased</span>
+                            </label>
+
+                            <label className={`flex items-center space-x-1 cursor-pointer text-[11px] px-2 py-1 rounded border transition ${
+                              jItem.disposition === 'return_to_family'
+                                ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold'
+                                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                            }`}>
+                              <input
+                                type="radio"
+                                name={`disp-${jItem.id}`}
+                                value="return_to_family"
+                                checked={jItem.disposition === 'return_to_family'}
+                                onChange={() => {
+                                  setClothingData(prev => ({
+                                    ...prev,
+                                    jewelryList: prev.jewelryList.map(j => j.id === jItem.id ? { ...j, disposition: 'return_to_family' } : j)
+                                  }));
+                                }}
+                                className="text-blue-700"
+                              />
+                              <span>Return to Family</span>
+                            </label>
+                          </div>
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveJewelry(jItem.id)}
+                            className="text-neutral-400 hover:text-red-700 p-1"
+                            title="Remove row"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Add Custom Jewelry Box */}
+              <div className="bg-[#f8fafc] border border-neutral-200 p-3 rounded-xl flex flex-col sm:flex-row items-center gap-2 text-xs">
+                <input
+                  type="text"
+                  value={newCustomJewelryName}
+                  onChange={(e) => setNewCustomJewelryName(e.target.value)}
+                  placeholder="Add item (e.g. Masonic Ring, Diamond Brooch)..."
+                  className="w-full sm:w-1/3 bg-white border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none"
+                />
+                <input
+                  type="text"
+                  value={newCustomJewelryDesc}
+                  onChange={(e) => setNewCustomJewelryDesc(e.target.value)}
+                  placeholder="Description & placement note..."
+                  className="w-full sm:w-1/3 bg-white border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none"
+                />
+                <select
+                  value={newCustomJewelryDisp}
+                  onChange={(e) => setNewCustomJewelryDisp(e.target.value as any)}
+                  className="w-full sm:w-1/4 bg-white border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none"
+                >
+                  <option value="remain_on_decedent">Remain with Deceased</option>
+                  <option value="return_to_family">Return to Family</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleAddCustomJewelry}
+                  className="w-full sm:w-auto px-3.5 py-2 bg-neutral-900 hover:bg-black text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Item</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ----------------------------------------------------------- */}
+            {/* SECTION 3: CASKET SPECS & HAIRDRESSER ASSIGNMENT            */}
+            {/* ----------------------------------------------------------- */}
+            <div className="border border-neutral-200 p-4 rounded-xl space-y-3 bg-[#fafafa]">
+              <span className="font-bold text-xs uppercase text-[#991b1b] block">
+                3. Casket Specifications & Cosmetology Assignment:
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Casket Serial / Number:</label>
+                  <input
+                    type="text"
+                    value={clothingData.casketNumber || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, casketNumber: e.target.value }))}
+                    placeholder="e.g. CSK-8819-CH"
+                    className="w-full bg-white border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 font-mono outline-none focus:border-[#991b1b]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Casket Model / Name:</label>
+                  <input
+                    type="text"
+                    value={clothingData.casketName || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, casketName: e.target.value }))}
+                    placeholder="e.g. The St. Nicholas Heritage Cherry"
+                    className="w-full bg-white border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Engraved Nameplate Required:</label>
+                  <div className="flex items-center gap-3 pt-1">
+                    <label className="flex items-center space-x-1 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="namePlateOpt"
+                        checked={clothingData.namePlate === true}
+                        onChange={() => setClothingData(prev => ({ ...prev, namePlate: true }))}
+                        className="text-emerald-700"
+                      />
+                      <span className="font-bold text-neutral-800">✓ Yes</span>
+                    </label>
+                    <label className="flex items-center space-x-1 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="namePlateOpt"
+                        checked={clothingData.namePlate === false}
+                        onChange={() => setClothingData(prev => ({ ...prev, namePlate: false }))}
+                        className="text-neutral-600"
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Hairdresser / Stylist Assigned:</label>
+                  <select
+                    value={clothingData.hairdresserName || ''}
+                    onChange={(e) => setClothingData(prev => ({ 
+                      ...prev, 
+                      hairdresserName: e.target.value,
+                      hairdresserAssigned: Boolean(e.target.value)
+                    }))}
+                    className="w-full bg-white border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
+                  >
+                    <option value="">-- Select Hairdresser / Stylist --</option>
+                    <option value="Kelvin Brooks (646-508-3474)">Kelvin Brooks (646-508-3474)</option>
+                    <option value="Tanisha Carey (347-605-8707)">Tanisha Carey (347-605-8707)</option>
+                    <option value="Renee- Zomelia Thomas (646-285-2851)">Renee- Zomelia Thomas (646-285-2851)</option>
+                    <option value="Family Private Hairdresser / Barber">Family Private Hairdresser / Barber</option>
+                    <option value="In-House BFH Preparation Team">In-House BFH Preparation Team</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">
+                  Hairstyling, Barbering & Cosmetology Instructions:
+                </label>
+                <textarea
+                  rows={2}
+                  value={clothingData.cosmeticsNotes || ''}
+                  onChange={(e) => setClothingData(prev => ({ ...prev, cosmeticsNotes: e.target.value }))}
+                  placeholder="Specific instructions on hair parting, mustache/beard trim, makeup shade, lipstick tone, or reference photo provided..."
+                  className="w-full bg-white border border-neutral-300 rounded-lg p-2.5 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
+                />
+              </div>
+            </div>
+
+            {/* ----------------------------------------------------------- */}
+            {/* SECTION 4: CHAIN OF CUSTODY & RECEIPT SIGN-OFF              */}
+            {/* ----------------------------------------------------------- */}
+            <div className="border border-neutral-200 p-4 rounded-xl bg-white space-y-3">
+              <span className="font-bold text-xs uppercase text-neutral-900 block">
+                4. Chain of Custody & Verification Sign-Off:
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Garments Delivered By (Family / Informant):</label>
+                  <input
+                    type="text"
+                    value={clothingData.deliveredBy || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, deliveredBy: e.target.value }))}
+                    placeholder="Full name of person delivering"
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Contact Phone:</label>
+                  <input
+                    type="tel"
+                    value={clothingData.deliveredByPhone || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, deliveredByPhone: e.target.value }))}
+                    placeholder="(212) 555-0198"
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-1">Received By (Funeral Director):</label>
+                  <input
+                    type="text"
+                    value={clothingData.receivedByDirector || ''}
+                    onChange={(e) => setClothingData(prev => ({ ...prev, receivedByDirector: e.target.value }))}
+                    placeholder="Licensed Director Name"
+                    className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-lg p-2 text-xs text-neutral-900 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Finalize Bar */}
+            <div className="pt-4 border-t border-neutral-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+              <p className="text-[10px] text-neutral-400 font-serif italic">
+                Official Property of Benta's Funeral Home, Inc. • Golden Record Dressing Protocol
+              </p>
+              <button
+                type="button"
+                onClick={handleSaveClothingSubmittal}
+                className="w-full sm:w-auto px-6 py-2.5 bg-[#991b1b] hover:bg-red-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md border border-amber-300/40"
+              >
+                <Save className="w-4 h-4 text-amber-300" />
+                <span>Save & Complete Clothing Submittal</span>
+              </button>
+            </div>
+
           </div>
         );
 

@@ -6,6 +6,7 @@ import {
   VendorSmsThreadMessage,
   SimulatedNotification
 } from '../../lib/types/funeral';
+import { getTwilioConfig } from '../../lib/services/twilioService';
 import {
   Smartphone,
   Send,
@@ -25,7 +26,9 @@ import {
   Copy,
   Check,
   Activity,
-  Server
+  Server,
+  Phone,
+  Key
 } from 'lucide-react';
 
 interface TwoWayVendorSmsModalProps {
@@ -38,18 +41,20 @@ interface TwoWayVendorSmsModalProps {
   onAddRequest?: (newReq: PartnerScheduleRequest) => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
   targetRequestId?: string | null;
+  onOpenTwilioGateway?: () => void;
 }
 
 export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
   isOpen,
   onClose,
   activeCase,
-  partners: _partners,
+  partners = [],
   requests,
   onUpdateRequest,
   onAddRequest: _onAddRequest,
   onSendNotification,
-  targetRequestId
+  targetRequestId,
+  onOpenTwilioGateway
 }) => {
   // Find initial request or default
   const caseRequests = requests.filter(r => r.caseId === activeCase.id);
@@ -63,8 +68,12 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
   const [directorOutboundDraft, setDirectorOutboundDraft] = useState('');
   const [adjustedTimeInput, setAdjustedTimeInput] = useState('10:15 AM');
   const [showAdjustTimeModal, setShowAdjustTimeModal] = useState(false);
+  const [showPhoneLogModal, setShowPhoneLogModal] = useState(false);
+  const [phoneLogNotes, setPhoneLogNotes] = useState('');
+  const [phoneLogCaller, setPhoneLogCaller] = useState('Jason Benta, LFD #08850');
   const [toastFeedback, setToastFeedback] = useState<string | null>(null);
   const [copiedPayload, setCopiedPayload] = useState(false);
+  const twilioConfig = getTwilioConfig();
 
   if (!isOpen) return null;
 
@@ -85,6 +94,88 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
   const showToast = (msg: string) => {
     setToastFeedback(msg);
     setTimeout(() => setToastFeedback(null), 4000);
+  };
+
+  // Director triggers 1-Tap Standby Cascade Fallback
+  const handleStandbyCascade = () => {
+    if (!currentRequest) return;
+    const standbyPartner = partners.find(p => p.id === currentRequest.standbyBackupPartnerId || p.fullName === currentRequest.standbyBackupPartnerName) || partners.find(p => p.category === currentRequest.category && p.id !== currentRequest.partnerId);
+    
+    if (!standbyPartner) {
+      alert('No verified standby backup partner found in Harlem directory for this role.');
+      return;
+    }
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const nowFormatted = `Today ${timeStr}`;
+
+    const newSmsText = `BFH URGENT STANDBY DISPATCH: Dear ${standbyPartner.fullName}, you have been activated from standby for ${currentRequest.roleTitle} on Case #${currentRequest.caseNumber} (${currentRequest.decedentName}) on ${currentRequest.serviceDate} at ${currentRequest.callTime} (${currentRequest.venueLocation}). Please reply YES immediately to confirm.`;
+
+    const cascadeMsg: VendorSmsThreadMessage = {
+      id: `msg-cascade-${Date.now()}`,
+      sender: 'bfh_dispatch',
+      senderName: "Benta's Dispatch (Standby Cascade Fallback)",
+      senderPhone: '(212) 281-8850',
+      body: `[CASCADE FALLBACK ACTIVATED]: Primary vendor was unresponsive past SLA deadline. Service reassigned to Standby Partner ${standbyPartner.fullName} (${standbyPartner.phone}). Urgent hold SMS dispatched.`,
+      timestamp: nowFormatted,
+      status: 'delivered'
+    };
+
+    const updated: PartnerScheduleRequest = {
+      ...currentRequest,
+      partnerId: standbyPartner.id,
+      partnerName: standbyPartner.fullName,
+      partnerPhone: standbyPartner.phone,
+      roleTitle: standbyPartner.roleTitle,
+      status: 'sms_sent',
+      isOverdue: false,
+      overdueMinutes: 0,
+      escalationStatus: 'backup_cascaded',
+      directorFollowUpRequired: false,
+      requestedAt: nowFormatted,
+      smsMessageDraft: newSmsText,
+      remindersCount: 0,
+      threadMessages: [...threadMessages, cascadeMsg]
+    };
+
+    onUpdateRequest(updated);
+    showToast(`⚡ Cascaded to Standby Partner: ${standbyPartner.fullName} (${standbyPartner.phone})!`);
+  };
+
+  // Director logs direct verbal phone call confirmation
+  const handleLogDirectorPhoneCall = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentRequest) return;
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const nowFormatted = `Today ${timeStr}`;
+
+    const phoneMsg: VendorSmsThreadMessage = {
+      id: `msg-phone-${Date.now()}`,
+      sender: 'bfh_dispatch',
+      senderName: phoneLogCaller,
+      senderPhone: '(212) 281-8850',
+      body: `[DIRECTOR PHONE CALL LOGGED]: ${phoneLogNotes || 'Director called vendor directly. Vendor verbally confirmed availability and on-time arrival.'} (Confirmed by ${phoneLogCaller})`,
+      timestamp: nowFormatted,
+      status: 'delivered'
+    };
+
+    const updated: PartnerScheduleRequest = {
+      ...currentRequest,
+      status: 'confirmed',
+      isOverdue: false,
+      directorFollowUpRequired: false,
+      directorCalledAt: nowFormatted,
+      directorFollowUpNotes: phoneLogNotes || 'Director verbal phone confirmation.',
+      escalationStatus: 'director_phone_confirmed',
+      confirmedAt: nowFormatted,
+      threadMessages: [...threadMessages, phoneMsg]
+    };
+
+    onUpdateRequest(updated);
+    setShowPhoneLogModal(false);
+    setPhoneLogNotes('');
+    showToast(`📞 Verbal phone confirmation logged for ${currentRequest.partnerName}! Status set to CONFIRMED.`);
   };
 
   // Director sends an outbound SMS to the vendor
@@ -300,6 +391,16 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
             </button>
           </div>
           <div className="hidden sm:flex items-center space-x-3 text-[11px] text-neutral-400 font-mono">
+            {onOpenTwilioGateway && (
+              <button
+                onClick={onOpenTwilioGateway}
+                className="text-amber-400 hover:text-amber-300 underline flex items-center gap-1 cursor-pointer font-sans text-xs mr-1"
+                title="Configure Twilio API Keys and Phone Number"
+              >
+                <Key className="w-3 h-3 text-amber-400" />
+                <span>Configure Keys</span>
+              </button>
+            )}
             <span className="flex items-center gap-1">
               <Server className="w-3 h-3 text-emerald-400" />
               <span>Twilio API v2010-04-01</span>
@@ -336,11 +437,21 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
                   <span className="text-sm font-bold text-white">Twilio REST API Gateway & Webhook Pipeline</span>
                 </div>
                 <p className="text-neutral-400 text-xs mt-1 font-sans">
-                  Bi-directional carrier routing between Benta's Funeral Home (212-281-8850) and {currentRequest?.partnerName} ({currentRequest?.partnerPhone}).
+                  Bi-directional carrier routing between Benta's Funeral Home ({twilioConfig.fromPhoneNumber || '212-281-8850'}) and {currentRequest?.partnerName} ({currentRequest?.partnerPhone}).
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 font-sans">
+              <div className="flex items-center gap-2 font-sans flex-wrap">
+                {onOpenTwilioGateway && (
+                  <button
+                    onClick={onOpenTwilioGateway}
+                    className="px-3.5 py-1.5 bg-[#991b1b] hover:bg-[#7f1d1d] text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border border-amber-300/40 shadow-xs cursor-pointer"
+                    title="Open Twilio Gateway Settings to enter Account SID and Auth Token"
+                  >
+                    <Key className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Configure Twilio Keys & Number</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     const lastMsg = currentRequest?.threadMessages && currentRequest.threadMessages.length > 0
@@ -348,10 +459,10 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
                       : "YES, CONFIRMED";
                     const sampleWebhook = JSON.stringify({
                       event: "sms.inbound_received",
-                      AccountSid: "ACbfh9828472918402948201948201948",
+                      AccountSid: twilioConfig.accountSid || "ACbfh9828472918402948201948201948",
                       MessageSid: `SM${Date.now().toString(36)}`,
                       From: currentRequest?.partnerPhone,
-                      To: "+12122818850",
+                      To: twilioConfig.fromPhoneNumber || "+12122818850",
                       Body: lastMsg,
                       Carrier: "Verizon Wireless (NYC)",
                       SignatureValid: true
@@ -360,7 +471,7 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
                     setCopiedPayload(true);
                     setTimeout(() => setCopiedPayload(false), 2000);
                   }}
-                  className="px-3.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border border-neutral-700"
+                  className="px-3.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border border-neutral-700 cursor-pointer"
                 >
                   {copiedPayload ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-300" />}
                   <span>{copiedPayload ? 'Copied JSON!' : 'Copy Twilio Payload'}</span>
@@ -478,11 +589,19 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                     currentRequest?.status === 'confirmed'
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : currentRequest?.status === 'overdue_unconfirmed' || currentRequest?.isOverdue
+                      ? 'bg-red-100 text-red-900 border border-red-300 animate-pulse'
                       : currentRequest?.status === 'declined'
                       ? 'bg-red-100 text-red-800 border border-red-300'
                       : 'bg-amber-100 text-amber-800 border border-amber-300'
                   }`}>
-                    {currentRequest?.status === 'confirmed' ? '✅ Confirmed' : currentRequest?.status === 'declined' ? '❌ Declined' : '⏳ Awaiting Reply'}
+                    {currentRequest?.status === 'confirmed' 
+                      ? '✅ Confirmed' 
+                      : currentRequest?.status === 'overdue_unconfirmed' || currentRequest?.isOverdue
+                      ? '🚨 SLA Overdue!' 
+                      : currentRequest?.status === 'declined' 
+                      ? '❌ Declined' 
+                      : '⏳ Awaiting Reply'}
                   </span>
                 </div>
 
@@ -500,8 +619,10 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
                     <strong className="text-neutral-900 truncate block">{currentRequest?.venueLocation}</strong>
                   </div>
                   <div>
-                    <span className="text-neutral-500 text-[10px] block">Honorarium / Fee</span>
-                    <strong className="text-[#991b1b] font-mono">{currentRequest?.honorariumFee || '$0.00'}</strong>
+                    <span className="text-neutral-500 text-[10px] block">Response SLA Deadline</span>
+                    <strong className={`font-mono ${currentRequest?.isOverdue ? 'text-red-700' : 'text-neutral-900'}`}>
+                      {currentRequest?.responseDeadline || '4 Hours'}
+                    </strong>
                   </div>
                 </div>
 
@@ -511,6 +632,120 @@ export const TwoWayVendorSmsModal: React.FC<TwoWayVendorSmsModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Standby Backup Partner & Emergency Escalation Hub */}
+              <div className="bg-gradient-to-r from-purple-50 via-purple-100/40 to-white p-4 rounded-2xl border border-purple-200 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                      🛡️ Standby Waterfall Backup Partner
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-purple-200/70 text-purple-900 font-mono font-bold px-2 py-0.5 rounded">
+                    Pre-Assigned
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-white rounded-xl border border-purple-200/80 text-xs space-y-1">
+                  <div className="flex justify-between items-center">
+                    <strong className="font-serif-title text-neutral-900 font-bold">
+                      {currentRequest?.standbyBackupPartnerName || 'Assigned in Harlem Network Directory'}
+                    </strong>
+                    <span className="text-[10px] text-purple-700 font-bold">
+                      {currentRequest?.standbyBackupRoleTitle || currentRequest?.roleTitle}
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono text-neutral-600">
+                    Direct Phone: {currentRequest?.standbyBackupPartnerPhone || '(212) 555-0199'}
+                  </div>
+                </div>
+
+                {/* Director Quick Action Buttons for Unresponsive Vendor */}
+                {currentRequest?.status !== 'confirmed' && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Activate Standby Backup Partner (${currentRequest?.standbyBackupPartnerName || 'Next Guild Contact'})? This will reassign the booking and immediately dispatch a priority SMS hold.`)) {
+                          handleStandbyCascade();
+                        }
+                      }}
+                      className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1.5"
+                      title="1-Tap Waterfall: Swap to Standby Backup Partner and dispatch SMS"
+                    >
+                      <span>⚡ Cascade Backup</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setPhoneLogNotes(`Director spoke directly with ${currentRequest?.partnerName} at ${currentRequest?.partnerPhone}. Partner confirmed arrival for ${currentRequest?.serviceDate} at ${currentRequest?.callTime}.`);
+                        setShowPhoneLogModal(true);
+                      }}
+                      className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-300 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                      title="Log direct verbal telephone confirmation from vendor"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-[#991b1b]" />
+                      <span>Log Verbal Call</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* In-Modal Phone Log Dialog */}
+              {showPhoneLogModal && (
+                <form onSubmit={handleLogDirectorPhoneCall} className="p-4 bg-white rounded-2xl border-2 border-[#991b1b] shadow-md space-y-3 text-xs animate-fadeIn">
+                  <div className="flex justify-between items-center border-b border-neutral-200 pb-2">
+                    <span className="font-serif-title font-bold text-neutral-900 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-[#991b1b]" />
+                      <span>Log Director Phone Call Confirmation</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPhoneLogModal(false)}
+                      className="text-neutral-400 hover:text-neutral-800 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-700 font-bold mb-1">Director / Caller Name:</label>
+                    <input
+                      type="text"
+                      required
+                      value={phoneLogCaller}
+                      onChange={(e) => setPhoneLogCaller(e.target.value)}
+                      className="w-full bg-neutral-50 border border-neutral-300 rounded-lg p-2 font-bold outline-none focus:border-[#991b1b]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-700 font-bold mb-1">Verbal Agreement Notes:</label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={phoneLogNotes}
+                      onChange={(e) => setPhoneLogNotes(e.target.value)}
+                      className="w-full bg-neutral-50 border border-neutral-300 rounded-lg p-2 outline-none focus:border-[#991b1b]"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPhoneLogModal(false)}
+                      className="px-3 py-1.5 text-neutral-600 hover:text-neutral-900"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-[#991b1b] hover:bg-red-800 text-white font-bold px-4 py-1.5 rounded-lg shadow-xs"
+                    >
+                      Confirm Booking
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {/* Outbound Dispatch Form */}
               <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs space-y-3">

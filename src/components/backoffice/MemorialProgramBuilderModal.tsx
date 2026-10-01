@@ -11,7 +11,8 @@ import {
   Eye, 
   Palette,
   Heart,
-  ScrollText
+  ScrollText,
+  Lock
 } from 'lucide-react';
 
 interface MemorialProgramBuilderModalProps {
@@ -19,13 +20,15 @@ interface MemorialProgramBuilderModalProps {
   onClose: () => void;
   caseData: GoldenRecordCase;
   onSaveProgram?: (programData: any) => void;
+  onOpenFamilyProofApproval?: () => void;
 }
 
 export const MemorialProgramBuilderModal: React.FC<MemorialProgramBuilderModalProps> = ({
   isOpen,
   onClose,
   caseData,
-  onSaveProgram: _onSaveProgram
+  onSaveProgram: _onSaveProgram,
+  onOpenFamilyProofApproval
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'edit_order' | 'edit_cover' | 'edit_back'>('preview');
   const [theme, setTheme] = useState<'crimson_gold' | 'midnight_pearl' | 'ivory_rose' | 'celestial_blue'>('crimson_gold');
@@ -198,6 +201,18 @@ export const MemorialProgramBuilderModal: React.FC<MemorialProgramBuilderModalPr
                 Inner Sheet (Pages 2 & 3)
               </button>
             </div>
+
+            {/* Family Proof Approval & Press Lock */}
+            {onOpenFamilyProofApproval && (
+              <button
+                onClick={onOpenFamilyProofApproval}
+                className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition shadow-2xs"
+                title="Open Family Proof Approval & Commercial Press Lock Hub"
+              >
+                <Lock className="w-3.5 h-3.5 text-purple-700" />
+                <span>Family Proof & Press Lock</span>
+              </button>
+            )}
 
             {/* Print Button */}
             <button

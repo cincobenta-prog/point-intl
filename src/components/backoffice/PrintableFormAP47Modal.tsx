@@ -1,29 +1,42 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Printer, 
-  Download
+  Download,
+  HandCoins
 } from 'lucide-react';
 import { GoldenRecordCase } from '../../lib/types/funeral';
 import { getDefaultStatementOfGoodsForCase } from '../../lib/data/generalPriceList';
+import { CashAdvanceCheckPrinterModal } from './CashAdvanceCheckPrinterModal';
 
 interface PrintableFormAP47ModalProps {
   isOpen: boolean;
   onClose: () => void;
   caseData: GoldenRecordCase;
+  onOpenCheckPrinter?: (targetCase: GoldenRecordCase) => void;
 }
 
 export const PrintableFormAP47Modal: React.FC<PrintableFormAP47ModalProps> = ({
   isOpen,
   onClose,
-  caseData
+  caseData,
+  onOpenCheckPrinter
 }) => {
+  const [isInternalCheckPrinterOpen, setIsInternalCheckPrinterOpen] = useState(false);
   if (!isOpen) return null;
 
   const sog = caseData.statementOfGoods || getDefaultStatementOfGoodsForCase(caseData);
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleOpenChecks = () => {
+    if (onOpenCheckPrinter) {
+      onOpenCheckPrinter(caseData);
+    } else {
+      setIsInternalCheckPrinterOpen(true);
+    }
   };
 
   const handleDownloadJSON = () => {
@@ -59,6 +72,14 @@ export const PrintableFormAP47Modal: React.FC<PrintableFormAP47ModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={handleOpenChecks}
+              className="bg-neutral-800 hover:bg-neutral-700 text-amber-300 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition border border-amber-400/40"
+              title="Print 3-Part Cash Advance Check Vouchers"
+            >
+              <HandCoins className="w-3.5 h-3.5 text-amber-300" />
+              <span>Pass-Through Checks</span>
+            </button>
             <button
               onClick={handlePrint}
               className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm border border-amber-400/40"
@@ -257,9 +278,18 @@ export const PrintableFormAP47Modal: React.FC<PrintableFormAP47ModalProps> = ({
 
           {/* SECTION II: CASH ADVANCES */}
           <div className="space-y-2">
-            <h2 className="font-bold text-xs uppercase tracking-wider bg-neutral-900 text-white px-2.5 py-1 rounded">
-              Section II — Cash Advance Items (Disbursements Paid on Behalf of Family)
-            </h2>
+            <div className="flex justify-between items-center bg-neutral-900 text-white px-2.5 py-1 rounded">
+              <h2 className="font-bold text-xs uppercase tracking-wider">
+                Section II — Cash Advance Items (Disbursements Paid on Behalf of Family)
+              </h2>
+              <button
+                onClick={handleOpenChecks}
+                className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-[10px] px-2.5 py-0.5 rounded transition flex items-center gap-1 border border-amber-400/40 print:hidden"
+              >
+                <HandCoins className="w-3 h-3 text-amber-300" />
+                <span>Print Checks (${sog.sectionII.totalCashAdvances.toFixed(2)})</span>
+              </button>
+            </div>
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-neutral-300 text-[10px] text-neutral-500 uppercase">
@@ -298,6 +328,22 @@ export const PrintableFormAP47Modal: React.FC<PrintableFormAP47ModalProps> = ({
                       Organist / Vocalist ({sog.sectionII.organistMusicianName || "Sanctuary Organist"})
                     </td>
                     <td className="py-1.5 text-right font-mono">${sog.sectionII.organistMusicianAmount.toFixed(2)}</td>
+                  </tr>
+                )}
+                {sog.sectionII.pallbearersAmount > 0 && (
+                  <tr>
+                    <td className="py-1.5">
+                      Pallbearers Professional Service Crew ({sog.sectionII.pallbearersCount || 4} Staff)
+                    </td>
+                    <td className="py-1.5 text-right font-mono">${sog.sectionII.pallbearersAmount.toFixed(2)}</td>
+                  </tr>
+                )}
+                {(sog.sectionII.bridgeAndRoadTollsAmount > 0 || sog.sectionII.gratuitiesLiveryAndStaffAmount > 0) && (
+                  <tr>
+                    <td className="py-1.5">
+                      Bridge &amp; Road Tolls / Chauffeur Service Pool
+                    </td>
+                    <td className="py-1.5 text-right font-mono">${(sog.sectionII.bridgeAndRoadTollsAmount + sog.sectionII.gratuitiesLiveryAndStaffAmount).toFixed(2)}</td>
                   </tr>
                 )}
               </tbody>
@@ -384,6 +430,16 @@ export const PrintableFormAP47Modal: React.FC<PrintableFormAP47ModalProps> = ({
         </div>
 
       </div>
+
+      {/* 3-Part Cash Advance Check Printer Modal */}
+      {isInternalCheckPrinterOpen && (
+        <CashAdvanceCheckPrinterModal
+          isOpen={isInternalCheckPrinterOpen}
+          onClose={() => setIsInternalCheckPrinterOpen(false)}
+          caseData={caseData}
+        />
+      )}
+
     </div>
   );
 };

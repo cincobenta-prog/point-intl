@@ -1,22 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoldenRecordCase } from '../../lib/types/funeral';
+import { generateAIConciergeResponse } from '../../lib/services/aiGatewayService';
+import { 
+  getCloudMediaVault, 
+  addMediaAssetToVault, 
+  deleteMediaAssetFromVault, 
+  CloudMediaAsset 
+} from '../../lib/services/cloudStorageService';
+import { FloralTributeShopModal, HARLEM_FLORAL_CATALOG } from './FloralTributeShopModal';
 import { 
   MessageSquare, 
   Send, 
   Sparkles, 
   ShieldCheck, 
-  Award, 
   DollarSign, 
-  Heart, 
-  FileText, 
   Scale, 
-  Flag, 
   ArrowRight, 
   AlertCircle, 
-  UserCheck, 
   RefreshCw,
-  Info,
-  PhoneCall
+  Flower2,
+  Flame,
+  Music,
+  UploadCloud,
+  Play,
+  Pause,
+  CheckCircle2,
+  Trash2,
+  ExternalLink,
+  ShoppingBag,
+  Disc
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -31,18 +43,141 @@ interface ChatMessage {
   }>;
 }
 
+interface ScriptureVerse {
+  reference: string;
+  text: string;
+  tradition: string;
+}
+
+interface MemorialCandleNote {
+  id: string;
+  author: string;
+  relationship: string;
+  message: string;
+  scripture?: string;
+  litAt: string;
+  flameColor: string;
+}
+
+interface SacredHymnTrack {
+  id: string;
+  title: string;
+  artistOrChoir: string;
+  category: 'prelude' | 'processional' | 'solo' | 'recessional';
+  duration: string;
+  description: string;
+  scriptureAnchor: string;
+  isDirectorRecommended?: boolean;
+}
+
 interface FamilyCareConciergeViewProps {
   activeCase: GoldenRecordCase;
   onNavigateTab?: (tab: 'obituary' | 'tribute' | 'arrangements' | 'documents' | 'photos' | 'status') => void;
 }
 
+const SACRED_HYMNS_CATALOG: SacredHymnTrack[] = [
+  {
+    id: 'hymn-01',
+    title: 'Take My Hand, Precious Lord',
+    artistOrChoir: 'Harlem Sanctuary Gospel Organ & Choir',
+    category: 'processional',
+    duration: '4:15',
+    description: 'Composed by Thomas A. Dorsey. The quintessential African-American solemn entrance hymn of comfort and spiritual guidance.',
+    scriptureAnchor: 'Psalm 73:23-24',
+    isDirectorRecommended: true
+  },
+  {
+    id: 'hymn-02',
+    title: 'Amazing Grace (A Cappella & Pipe Organ)',
+    artistOrChoir: 'Benta’s Resident Soloist & Historic Organ',
+    category: 'solo',
+    duration: '3:50',
+    description: 'A deeply moving traditional rendition featuring soaring high registers and warm pedal resonance throughout Chapel 1 Sanctuary.',
+    scriptureAnchor: 'Ephesians 2:8-9',
+    isDirectorRecommended: true
+  },
+  {
+    id: 'hymn-03',
+    title: 'His Eye Is on the Sparrow',
+    artistOrChoir: 'Mount Olivet Baptist Choral Quartet',
+    category: 'solo',
+    duration: '4:45',
+    description: 'An uplifting gospel ballad celebrating faith, protection, and eternal peace under God’s watchful eye.',
+    scriptureAnchor: 'Matthew 6:26',
+    isDirectorRecommended: true
+  },
+  {
+    id: 'hymn-04',
+    title: 'Going Up Yonder',
+    artistOrChoir: 'Harlem Heritage Memorial Ensemble',
+    category: 'recessional',
+    duration: '5:10',
+    description: 'Walter Hawkins’ triumphant gospel anthem accompanying the final cortege formation and recessional to Woodlawn Cemetery.',
+    scriptureAnchor: '2 Corinthians 5:1',
+    isDirectorRecommended: true
+  },
+  {
+    id: 'hymn-05',
+    title: 'Great Is Thy Faithfulness',
+    artistOrChoir: 'Abyssinian Sanctuary String Trio & Grand Piano',
+    category: 'prelude',
+    duration: '3:30',
+    description: 'Gentle, comforting instrumental prelude performed as family and community assemble in the sanctuary.',
+    scriptureAnchor: 'Lamentations 3:22-23',
+    isDirectorRecommended: false
+  },
+  {
+    id: 'hymn-06',
+    title: 'It Is Well With My Soul',
+    artistOrChoir: 'St. Nicholas Choral Society',
+    category: 'prelude',
+    duration: '4:02',
+    description: 'Timeless hymn of peace amidst life’s deepest trials, arranged with majestic brass and organ harmonics.',
+    scriptureAnchor: 'Philippians 4:7',
+    isDirectorRecommended: false
+  }
+];
+
+const SCRIPTURE_PRESETS: ScriptureVerse[] = [
+  {
+    reference: 'Psalm 23:1-4',
+    text: 'The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures: he leadeth me beside the still waters. Yea, though I walk through the valley of the shadow of death, I will fear no evil: for thou art with me.',
+    tradition: 'Biblical Comfort'
+  },
+  {
+    reference: 'John 14:1-3',
+    text: 'Let not your heart be troubled: ye believe in God, believe also in me. In my Father’s house are many mansions: if it were not so, I would have told you. I go to prepare a place for you.',
+    tradition: 'Assurance of Heaven'
+  },
+  {
+    reference: 'Ecclesiastes 3:1-4',
+    text: 'To every thing there is a season, and a time to every purpose under the heaven: A time to be born, and a time to die; a time to weep, and a time to laugh; a time to mourn, and a time to dance.',
+    tradition: 'Eternal Wisdom'
+  },
+  {
+    reference: 'Revelation 21:4',
+    text: 'And God shall wipe away all tears from their eyes; and there shall be no more death, neither sorrow, nor crying, neither shall there be any more pain: for the former things are passed away.',
+    tradition: 'Promise of Rest'
+  },
+  {
+    reference: 'Romans 8:38-39',
+    text: 'For I am persuaded, that neither death, nor life, nor angels, nor principalities... shall be able to separate us from the love of God, which is in Christ Jesus our Lord.',
+    tradition: 'Victory in Faith'
+  }
+];
+
 export const FamilyCareConciergeView: React.FC<FamilyCareConciergeViewProps> = ({
   activeCase,
   onNavigateTab
 }) => {
-  const [activeSection, setActiveSection] = useState<'chat' | 'financial' | 'laws' | 'crisis'>('chat');
+  const [activeSection, setActiveSection] = useState<
+    'chat' | 'floral' | 'candles' | 'music' | 'vault' | 'financial' | 'laws' | 'crisis'
+  >('chat');
   const [selectedState, setSelectedState] = useState<'NY' | 'NJ' | 'CT'>('NY');
   
+  // Floral Boutique Modal State
+  const [isFloralModalOpen, setIsFloralModalOpen] = useState(false);
+
   // Chat state
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -53,41 +188,189 @@ export const FamilyCareConciergeView: React.FC<FamilyCareConciergeViewProps> = (
     sender: 'bot',
     text: `Hello ${activeCase.informant.fullName || 'Family'}, I am your **Benta 24/7 Family Care Concierge** for **${activeCase.decedent.legalName}** (Case #${activeCase.caseNumber}). 
 
-I am here day and night to answer questions regarding **financial assistance (NYC HRA & VA Benefits)**, **New York funeral laws & Right of Disposition (PHL § 4201)**, **interstate transport logistics**, or to connect you directly with **Director Jason Benta**.
+I am here day and night to answer questions regarding **financial assistance (NYC HRA & VA Benefits)**, **New York funeral laws & Right of Disposition (PHL § 4201)**, **interstate transport logistics**, **Harlem florist tributes**, or to connect you directly with **Director Jason Benta**.
 
 How may I gently assist you right now?`,
     citation: "Benta's Funeral Home Care Desk • Serving Families Since 1928",
     timestamp: 'Just now',
     suggestedActions: [
+      { label: '🌸 Harlem Florist Guild Boutique', actionKey: 'floral' },
+      { label: '🕯️ Light a Virtual Memorial Candle', actionKey: 'candles' },
+      { label: '🎵 Curate Sacred Hymns & Service Music', actionKey: 'music' },
+      { label: '🛡️ Upload to S3 Golden Vault', actionKey: 'vault' },
       { label: '💰 Financial & Veteran Benefits', actionKey: 'financial' },
-      { label: '📜 NY State Law & Right to Control (PHL § 4201)', actionKey: 'laws' },
-      { label: '🚗 Interstate Transport & Woodlawn Logistics', actionKey: 'interstate' },
-      { label: '🕊️ Grief Support & 24/7 Counselors', actionKey: 'grief' }
+      { label: '📜 NY State Law & Right to Control (PHL § 4201)', actionKey: 'laws' }
     ]
   };
 
   const [messages, setMessages] = useState<ChatMessage[]>([initialGreeting]);
+
+  // Interactive Candle State
+  const [candleCount, setCandleCount] = useState<number>(48);
+  const [candleAuthorName, setCandleAuthorName] = useState<string>(activeCase.informant.fullName || 'Beloved Family');
+  const [candleRelationship, setCandleRelationship] = useState<string>('Family & Friends');
+  const [candleNote, setCandleNote] = useState<string>(`In loving memory of ${activeCase.decedent.legalName}. Your legacy will shine forever in our hearts.`);
+  const [selectedScripture, setSelectedScripture] = useState<ScriptureVerse>(SCRIPTURE_PRESETS[0]);
+  const [candleList, setCandleList] = useState<MemorialCandleNote[]>([
+    {
+      id: 'c-01',
+      author: activeCase.informant.fullName || 'Family',
+      relationship: activeCase.informant.relationship || 'Next of Kin',
+      message: `Rest peacefully, beloved ${activeCase.decedent.legalName.split(' ')[0]}. You gave our entire family so much love and wisdom.`,
+      scripture: 'Psalm 23:1-4',
+      litAt: '15 mins ago',
+      flameColor: '#f59e0b'
+    },
+    {
+      id: 'c-02',
+      author: 'Rev. Dr. Marcus Vance & Congregation',
+      relationship: 'Church Family',
+      message: 'A steadfast pillar of faith and dignity. Well done, good and faithful servant.',
+      scripture: 'John 14:1-3',
+      litAt: '1 hour ago',
+      flameColor: '#e11d48'
+    },
+    {
+      id: 'c-03',
+      author: 'Harlem Community Council',
+      relationship: 'Lifelong Neighbors',
+      message: 'Holding your entire family in our warmest prayers and gratitude.',
+      scripture: 'Romans 8:38-39',
+      litAt: '3 hours ago',
+      flameColor: '#3b82f6'
+    }
+  ]);
+
+  // Sacred Music Player State
+  const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
+  const [selectedServiceTracks, setSelectedServiceTracks] = useState<string[]>(['hymn-01', 'hymn-02', 'hymn-04']);
+
+  // S3 Golden Vault Media State
+  const [vaultAssets, setVaultAssets] = useState<CloudMediaAsset[]>([]);
+  const [isUploadingMedia, setIsUploadingMedia] = useState<boolean>(false);
+  const [mediaUploadCategory, setMediaUploadCategory] = useState<CloudMediaAsset['category']>('memorial_photo');
+  const [uploadFileName, setUploadFileName] = useState<string>('');
+
+  useEffect(() => {
+    setVaultAssets(getCloudMediaVault(activeCase.caseNumber));
+  }, [activeCase.caseNumber]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Knowledge Base Query Engine (Matching BFH Chatbot app.js)
+  const handleLightCandle = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!candleNote.trim()) return;
+
+    const newNote: MemorialCandleNote = {
+      id: `candle-${Date.now()}`,
+      author: candleAuthorName || 'Anonymous Friend',
+      relationship: candleRelationship || 'Community Member',
+      message: candleNote,
+      scripture: selectedScripture.reference,
+      litAt: 'Just now',
+      flameColor: '#f59e0b'
+    };
+
+    setCandleList(prev => [newNote, ...prev]);
+    setCandleCount(c => c + 1);
+    setCandleNote('');
+  };
+
+  const handleTogglePlayHymn = (trackId: string) => {
+    if (playingTrackId === trackId) {
+      setPlayingTrackId(null);
+    } else {
+      setPlayingTrackId(trackId);
+    }
+  };
+
+  const handleToggleServiceHymnSelection = (trackId: string) => {
+    setSelectedServiceTracks(prev => 
+      prev.includes(trackId) 
+        ? prev.filter(id => id !== trackId)
+        : [...prev, trackId]
+    );
+  };
+
+  const handleSimulatedVaultUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFileName.trim()) return;
+
+    setIsUploadingMedia(true);
+    await new Promise(r => setTimeout(r, 1200));
+
+    addMediaAssetToVault({
+      caseNumber: activeCase.caseNumber,
+      decedentName: activeCase.decedent.legalName,
+      category: mediaUploadCategory,
+      fileName: uploadFileName.endsWith('.jpg') || uploadFileName.endsWith('.mp3') || uploadFileName.endsWith('.pdf') 
+        ? uploadFileName 
+        : `${uploadFileName}.${mediaUploadCategory === 'living_voice_audio' ? 'mp3' : mediaUploadCategory === 'memorial_photo' ? 'jpg' : 'pdf'}`,
+      fileSizeBytes: Math.floor(1500000 + Math.random() * 4500000),
+      mimeType: mediaUploadCategory === 'living_voice_audio' ? 'audio/mpeg' : mediaUploadCategory === 'memorial_photo' ? 'image/jpeg' : 'application/pdf',
+      publicUrl: mediaUploadCategory === 'memorial_photo' 
+        ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=1200' 
+        : 'https://demo.docusign.net/documents/sample-signed.pdf',
+      uploadedBy: `${activeCase.informant.fullName} (Family Portal)`
+    });
+
+    setVaultAssets(getCloudMediaVault(activeCase.caseNumber));
+    setUploadFileName('');
+    setIsUploadingMedia(false);
+  };
+
+  const handleDeleteVaultAsset = (assetId: string) => {
+    deleteMediaAssetFromVault(assetId);
+    setVaultAssets(getCloudMediaVault(activeCase.caseNumber));
+  };
+
+  // Knowledge Base Query Engine
   const generateBotResponse = (query: string): { text: string; citation: string; actions?: any[] } => {
     const q = query.toLowerCase();
 
-    // 1. Veteran & Military Honors
-    if (q.includes('veteran') || q.includes('va') || q.includes('military') || q.includes('dd-214') || q.includes('dd214') || q.includes('armed forces') || q.includes('flag') || q.includes('taps')) {
+    if (q.includes('flower') || q.includes('floral') || q.includes('spray') || q.includes('wreath') || q.includes('daniela') || q.includes('barbara')) {
+      return {
+        text: `Benta’s proudly partners with Harlem's premier master florists: **Daniela's Flower Shop** (3650 Broadway) and **Barbara's Flowers** (2522 Frederick Douglass Blvd).
+
+We provide full casket sprays, standing crosses & wreaths, urn surrounds, and sympathy baskets delivered directly to Chapel 1 Sanctuary or the family residence with customized embossed satin ribbon banners.`,
+        citation: "Harlem Florist Guild & BFH Concierge Delivery Desk",
+        actions: [
+          { label: '🌸 Open Floral Boutique & Order via Stripe', actionKey: 'floral' }
+        ]
+      };
+    }
+
+    if (q.includes('candle') || q.includes('memory') || q.includes('condolence') || q.includes('scripture')) {
+      return {
+        text: `You and your family can light a virtual memorial candle and post heartfelt tributes on the **Living Memorial Wall**. You may also anchor your tribute with sacred scripture selections including Psalm 23, John 14, and Ecclesiastes 3.`,
+        citation: "Benta's Interactive Memory & Tribute Wall",
+        actions: [
+          { label: '🕯️ Light a Virtual Memorial Candle', actionKey: 'candles' }
+        ]
+      };
+    }
+
+    if (q.includes('music') || q.includes('hymn') || q.includes('song') || q.includes('organ') || q.includes('choir') || q.includes('solo')) {
+      return {
+        text: `Our sacred music catalog features historic Harlem gospel anthems and solemn classical preludes—including *"Take My Hand, Precious Lord"*, *"Amazing Grace"*, *"His Eye Is on the Sparrow"*, and *"Going Up Yonder"*. You can curate the sanctuary cue sheet directly in the portal.`,
+        citation: "BFH Sanctuary Music & Organ Guild",
+        actions: [
+          { label: '🎵 Curate Sacred Music Playlist', actionKey: 'music' }
+        ]
+      };
+    }
+
+    if (q.includes('veteran') || q.includes('va') || q.includes('military') || q.includes('dd-214') || q.includes('flag') || q.includes('taps')) {
       return {
         text: `Honoring our nation's service members is a sacred duty at Benta's Funeral Home. ${activeCase.decedent.veteran ? `Since ${activeCase.decedent.legalName} served in the ${activeCase.decedent.branchOfService || 'U.S. Armed Forces'}, your family is entitled to full federal honors:` : 'Honorably discharged veterans are entitled to meaningful federal benefits:'}
 
-1. **Free Cemetery Plot & Burial:** In any VA National Cemetery (such as Calverton National, Long Island National, or BG William C. Doyle NJ). This includes opening/closing, a government headstone, and perpetual care.
-2. **Military Funeral Honors:** A ceremonial 2-person uniform honor guard, the playing of *Taps*, and the official presentation of the folded American Burial Flag.
-3. **Presidential Memorial Certificate:** An engraved parchment signed by the President of the United States.
-4. **VA Burial Allowance:** Between **$893 and $2,000+** depending on service-connected status.
-
-**Required:** The Veteran's **DD-214 Form** (Discharge Certificate). If you cannot locate it, Benta's will help expedite military records retrieval directly with the National Personnel Records Center.`,
+1. **Free Cemetery Plot & Burial:** In any VA National Cemetery (such as Calverton National, Long Island National, or BG William C. Doyle NJ).
+2. **Military Funeral Honors:** 2-person uniform honor guard, the playing of *Taps*, and official flag presentation.
+3. **Presidential Memorial Certificate:** Engraved parchment signed by the President.
+4. **VA Burial Allowance:** Between **$893 and $2,000+**.`,
         citation: "U.S. Department of Veterans Affairs (VA.gov) 38 CFR § 3.1700",
         actions: [
           { label: 'View Financial Benefits Cards', actionKey: 'open_financial_tab' },
@@ -96,17 +379,14 @@ How may I gently assist you right now?`,
       };
     }
 
-    // 2. Financial Assistance (NYC HRA, Social Security, OVS, Medicaid)
-    if (q.includes('hra') || q.includes('financial') || q.includes('assistance') || q.includes('aid') || q.includes('help pay') || q.includes('cost') || q.includes('money') || q.includes('social security') || q.includes('255') || q.includes('ovs')) {
+    if (q.includes('hra') || q.includes('financial') || q.includes('assistance') || q.includes('cost') || q.includes('money') || q.includes('social security')) {
       return {
         text: `Several government assistance programs are available to help families offset funeral costs:
 
-• **NYC HRA Burial Assistance:** Low-income NYC residents can receive up to **$1,700** toward funeral or cremation expenses, provided total costs remain under the qualifying cap ($3,400). Applications are open up to 120 days after death.
-• **Social Security Lump-Sum Death Benefit:** A one-time payment of **$255** is payable to a surviving spouse or eligible dependent child (filed via Form SSA-721).
-• **NYS Office of Victim Services (OVS):** Up to **$6,000** in funeral reimbursement if the loss resulted from a violent crime or fatal traffic incident.
-• **Medicaid Pre-Need Spend-Down:** Irrevocable funeral trusts (like NYS PrePlan) protect assets during Medicaid qualification.
-
-Benta's Funeral Home will directly prepare the itemized invoices and documentation required for HRA and Social Security claims.`,
+• **NYC HRA Burial Assistance:** Up to **$1,700** toward funeral or cremation expenses for qualifying NYC residents.
+• **Social Security Lump-Sum Death Benefit:** One-time **$255** payable to surviving spouse (Form SSA-721).
+• **NYS Office of Victim Services (OVS):** Up to **$6,000** for violent crime losses.
+• **Medicaid Pre-Need Spend-Down:** Irrevocable funeral trusts protect assets during qualification.`,
         citation: "NYC Human Resources Administration & SSA § 402(i)",
         actions: [
           { label: 'Explore Financial Benefits Section', actionKey: 'open_financial_tab' },
@@ -115,121 +395,98 @@ Benta's Funeral Home will directly prepare the itemized invoices and documentati
       };
     }
 
-    // 3. Legal Right of Disposition & State Law (PHL § 4201)
-    if (q.includes('law') || q.includes('right to control') || q.includes('4201') || q.includes('next of kin') || q.includes('nok') || q.includes('who can sign') || q.includes('hierarchy') || q.includes('spouse') || q.includes('children')) {
-      return {
-        text: `Under **New York Public Health Law § 4201**, authority to control funeral and final disposition decisions follows a strict statutory priority hierarchy:
-
-1. **Designated Agent:** Named in a signed, witnessed NYS Disposition of Remains form.
-2. **Surviving Spouse:** Or legally recognized domestic partner (*verified for ${activeCase.informant.fullName}*).
-3. **Surviving Adult Children:** (Age 18 and older, majority consensus).
-4. **Surviving Parents:** Either surviving biological or adoptive parent.
-5. **Surviving Adult Siblings:** Brothers and sisters (majority consensus).
-6. **Court-Appointed Administrator / Guardian:** Of the decedent's estate.
-
-*Note on Embalming:* Embalming is **NOT mandatory** under New York law (10 NYCRR § 77.7). Families have the complete legal right to select direct cremation, direct burial, or refrigeration without embalming.`,
-        citation: "NY Public Health Law § 4201 & 10 NYCRR § 77.7",
-        actions: [
-          { label: 'Compare Tri-State Laws (NY / NJ / CT)', actionKey: 'open_laws_tab' },
-          { label: 'Review Right to Control Legal Form', actionKey: 'nav_docs' }
-        ]
-      };
-    }
-
-    // 4. Interstate Transport, Transit Permits & Woodlawn
-    if (q.includes('interstate') || q.includes('transport') || q.includes('transfer') || q.includes('repatriation') || q.includes('woodlawn') || q.includes('crematory') || q.includes('across state') || q.includes('airline') || q.includes('flight')) {
-      return {
-        text: `When transferring a loved one across state lines (such as NY, NJ, CT, PA, or internationally) or to Woodlawn Crematory:
-
-1. **Burial-Transit Permit:** The local registrar of vital statistics in the place of death must issue a certified Transit Permit before the decedent can cross state borders.
-2. **Regional Ground Transfer:** For neighboring states (NY, NJ, CT, PA), private climate-controlled ground transfer by Benta's specialized cortege vehicle is customary, dignified, and cost-effective.
-3. **Airline & Global Repatriation:** For long distances, TSA Known-Shipper protocols, consular clearances, and apostilles apply. Benta's coordinates all flights and receiving funeral home handoffs directly.
-4. **Woodlawn Crematory Escort:** For **${activeCase.decedent.legalName}**, cortege departure from 630 St. Nicholas Ave includes full licensed director escort to Woodlawn (Bronx, NY).`,
-        citation: "NYS DOH Interstate Transit & TSA Known-Shipper Guidelines",
-        actions: [
-          { label: 'Check Live Livery & Custody Status', actionKey: 'nav_status' }
-        ]
-      };
-    }
-
-    // 5. Obituary & Digital Tribute Suite
-    if (q.includes('obituary') || q.includes('story') || q.includes('draft') || q.includes('tribute') || q.includes('voice') || q.includes('qr') || q.includes('friends') || q.includes('record')) {
-      return {
-        text: `Your Family Portal includes two powerful commemorative tools:
-
-1. **🕊️ 9-Part Trauma-Informed Obituary Studio:** Walks you step-by-step through ordinary habits, signature sayings, and milestones without overwhelming timelines. Automatically produces a **Full Memorial Program draft** and a **Short Newspaper Notice**.
-2. **🎙️ 360° Digital Tribute & Voice Archive:** Collects living voice recordings and stories from friends, church members, and relatives worldwide. You can share via SMS/Email or print 4-up QR cards for the service.`,
-        citation: "Benta's Trauma-Informed Memory Suite",
-        actions: [
-          { label: 'Open 9-Part Obituary Studio', actionKey: 'nav_obit' },
-          { label: 'Open 360° Digital Tribute Studio', actionKey: 'nav_tribute' }
-        ]
-      };
-    }
-
-    // 6. Grief, Bereavement & Crisis Counseling
-    if (q.includes('grief') || q.includes('sad') || q.includes('crying') || q.includes('pain') || q.includes('lonely') || q.includes('support') || q.includes('counseling') || q.includes('help')) {
-      return {
-        text: `Please know that what you are feeling right now is completely natural. Grief touches us emotionally, physically, and spiritually in unpredictable waves.
-
-• **Be Gentle with Yourself:** There is no correct timeline, and no 'right' way to grieve.
-• **For Children & Teens:** Use honest, gentle words. Reassure them that they are loved and safe.
-• **Free 24/7 Crisis Support:** Call or text **988** anytime to speak with a compassionate crisis counselor, or call the **Grief Recovery Helpline** at **1-800-445-3834**.
-
-The Benta family is holding you close. Director Jason Benta and our care team are always just a phone call away.`,
-        citation: "BFH Bereavement Care & American Psychological Association",
-        actions: [
-          { label: 'Call 24/7 Benta Director Line', actionKey: 'call_director' }
-        ]
-      };
-    }
-
-    // Default Fallback
     return {
-      text: `Thank you for your question regarding **${activeCase.decedent.legalName}** (Case #${activeCase.caseNumber}). 
+      text: `I understand you are asking about: "${query}". 
 
-We have recorded your inquiry. You can explore the **Financial Benefits** tab for NYC HRA / VA details, review the **State Law** guide for Right of Disposition rules, or contact Director Jason Benta directly at **(212) 281-8850** for immediate personal assistance.`,
-      citation: "Benta's Care Concierge • Harlem, NY",
+At Benta's Funeral Home, Director Jason Benta and our licensed directors ensure every detail is handled with absolute dignity and transparency. You can explore financial aid, review NY state laws (PHL § 4201), order custom floral sprays from Daniela's Flowers, or contact our desk 24/7.`,
+      citation: "Benta's Funeral Home • Established 1928 • 630 St. Nicholas Ave",
       actions: [
-        { label: '💰 View Financial Benefits', actionKey: 'open_financial_tab' },
-        { label: '⚖️ View NY / NJ / CT Laws', actionKey: 'open_laws_tab' }
+        { label: '🌸 View Harlem Florist Catalog', actionKey: 'floral' },
+        { label: '🕯️ Light a Memorial Candle', actionKey: 'candles' },
+        { label: '📞 Call Director Jason Benta (212-281-8850)', actionKey: 'call_director' }
       ]
     };
   };
 
-  const handleSendMessage = (e?: React.FormEvent, customText?: string) => {
+  const handleSendMessage = async (e?: React.FormEvent, directQuery?: string) => {
     if (e) e.preventDefault();
-    const textToSend = customText || userInput;
-    if (!textToSend.trim()) return;
+    const query = directQuery || userInput;
+    if (!query.trim()) return;
 
     const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-user-${Date.now()}`,
       sender: 'user',
-      text: textToSend.trim(),
+      text: query,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     setMessages(prev => [...prev, userMsg]);
-    if (!customText) setUserInput('');
+    if (!directQuery) setUserInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const responseData = generateBotResponse(textToSend);
+    try {
+      let botResponseText = '';
+      let botCitation = "Benta's Funeral Home Care Desk • Serving Families Since 1928";
+      let botActions = undefined;
+
+      try {
+        const aiRes = await generateAIConciergeResponse(query, activeCase);
+        if (aiRes && aiRes.text) {
+          botResponseText = aiRes.text;
+          botCitation = aiRes.citation || botCitation;
+          botActions = aiRes.suggestedActions;
+        } else {
+          const ruleBot = generateBotResponse(query);
+          botResponseText = ruleBot.text;
+          botCitation = ruleBot.citation;
+          botActions = ruleBot.actions;
+        }
+      } catch {
+        const ruleBot = generateBotResponse(query);
+        botResponseText = ruleBot.text;
+        botCitation = ruleBot.citation;
+        botActions = ruleBot.actions;
+      }
+
       const botMsg: ChatMessage = {
         id: `msg-bot-${Date.now()}`,
         sender: 'bot',
-        text: responseData.text,
-        citation: responseData.citation,
+        text: botResponseText,
+        citation: botCitation,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestedActions: responseData.actions
+        suggestedActions: botActions
       };
       setMessages(prev => [...prev, botMsg]);
+    } catch {
+      const fallback = generateBotResponse(query);
+      const botMsg: ChatMessage = {
+        id: `msg-bot-${Date.now()}`,
+        sender: 'bot',
+        text: fallback.text,
+        citation: fallback.citation,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        suggestedActions: fallback.actions
+      };
+      setMessages(prev => [...prev, botMsg]);
+    } finally {
       setIsTyping(false);
-    }, 600);
+    }
   };
 
   const handleActionClick = (actionKey: string) => {
     switch (actionKey) {
+      case 'floral':
+        setActiveSection('floral');
+        break;
+      case 'candles':
+        setActiveSection('candles');
+        break;
+      case 'music':
+        setActiveSection('music');
+        break;
+      case 'vault':
+        setActiveSection('vault');
+        break;
       case 'financial':
       case 'open_financial_tab':
         setActiveSection('financial');
@@ -242,23 +499,8 @@ We have recorded your inquiry. You can explore the **Financial Benefits** tab fo
       case 'open_crisis_tab':
         setActiveSection('crisis');
         break;
-      case 'interstate':
-        handleSendMessage(undefined, 'How does interstate transfer and transport to Woodlawn Crematory work?');
-        break;
-      case 'grief':
-        handleSendMessage(undefined, 'What grief support and bereavement counseling resources are available?');
-        break;
       case 'nav_docs':
         if (onNavigateTab) onNavigateTab('documents');
-        break;
-      case 'nav_obit':
-        if (onNavigateTab) onNavigateTab('obituary');
-        break;
-      case 'nav_tribute':
-        if (onNavigateTab) onNavigateTab('tribute');
-        break;
-      case 'nav_status':
-        if (onNavigateTab) onNavigateTab('status');
         break;
       case 'call_director':
         alert("Connecting to Director Jason Benta's 24/7 Family Line: (212) 281-8850");
@@ -274,19 +516,25 @@ We have recorded your inquiry. You can explore the **Financial Benefits** tab fo
       {/* Concierge Hero Banner */}
       <div className="bg-gradient-to-br from-[#141b2b] via-[#1f2a42] to-[#2b1810] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden border border-amber-500/30">
         <div className="max-w-3xl space-y-2 relative z-10">
-          <span className="inline-flex items-center space-x-1.5 bg-amber-400/20 border border-amber-400/50 text-amber-200 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>24/7 Family Care Concierge & Legal Assistant</span>
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center space-x-1.5 bg-amber-400/20 border border-amber-400/50 text-amber-200 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>24/7 Family Care Concierge & Tribute Suite</span>
+            </span>
+            <span className="inline-flex items-center space-x-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+              <ShieldCheck className="w-3 h-3" />
+              <span>NYS Reg #08850 • Harlem Heritage</span>
+            </span>
+          </div>
           <h2 className="font-serif-title text-2xl sm:text-3xl font-bold text-white tracking-wide">
-            Compassionate Answers for {activeCase.decedent.legalName}
+            Compassionate Care for {activeCase.decedent.legalName}
           </h2>
           <p className="text-xs sm:text-sm text-neutral-300 font-light leading-relaxed">
-            Immediate 24/7 guidance on government financial assistance (NYC HRA & VA), New York statutory rights (PHL § 4201), transparent itemized pricing, and crisis support.
+            Live AI concierge, floral sympathy boutique from Daniela’s & Barbara’s Flowers, memorial candle wall, sacred hymn curation, and S3 Golden Vault media preservation.
           </p>
         </div>
         <div className="absolute right-6 -bottom-6 text-9xl text-white/5 font-serif select-none pointer-events-none">
-          ⚖️
+          🕯️
         </div>
       </div>
 
@@ -294,560 +542,714 @@ We have recorded your inquiry. You can explore the **Financial Benefits** tab fo
       <div className="bg-white border border-neutral-200 rounded-2xl p-1.5 shadow-sm flex items-center justify-between gap-1 overflow-x-auto">
         <button
           onClick={() => setActiveSection('chat')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
             activeSection === 'chat'
               ? 'bg-[#991b1b] text-white shadow-sm'
               : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
           }`}
         >
           <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-          <span>💬 Live Care Chat & Assistant</span>
+          <span>💬 Live Care Chat</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('floral')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
+            activeSection === 'floral'
+              ? 'bg-[#991b1b] text-white shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+          }`}
+        >
+          <Flower2 className="w-3.5 h-3.5 text-rose-400" />
+          <span>🌸 Florist Boutique</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('candles')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
+            activeSection === 'candles'
+              ? 'bg-[#991b1b] text-white shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5 text-amber-500" />
+          <span>🕯️ Memorial Candles ({candleCount})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('music')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
+            activeSection === 'music'
+              ? 'bg-[#991b1b] text-white shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+          }`}
+        >
+          <Music className="w-3.5 h-3.5 text-indigo-400" />
+          <span>🎵 Sacred Hymns</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('vault')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
+            activeSection === 'vault'
+              ? 'bg-[#991b1b] text-white shadow-sm'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+          }`}
+        >
+          <UploadCloud className="w-3.5 h-3.5 text-emerald-400" />
+          <span>🛡️ S3 Vault ({vaultAssets.length})</span>
         </button>
 
         <button
           onClick={() => setActiveSection('financial')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
             activeSection === 'financial'
               ? 'bg-[#991b1b] text-white shadow-sm'
               : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
           }`}
         >
           <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-          <span>💰 Financial & Veteran Benefits</span>
+          <span>💰 Financial Aid</span>
         </button>
 
         <button
           onClick={() => setActiveSection('laws')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
             activeSection === 'laws'
               ? 'bg-[#991b1b] text-white shadow-sm'
               : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
           }`}
         >
           <Scale className="w-3.5 h-3.5 text-blue-400" />
-          <span>⚖️ Tri-State Funeral Laws (NY/NJ/CT)</span>
+          <span>⚖️ NY State Law</span>
         </button>
 
         <button
           onClick={() => setActiveSection('crisis')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition ${
             activeSection === 'crisis'
               ? 'bg-[#991b1b] text-white shadow-sm'
               : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
           }`}
         >
           <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-          <span>🚨 First Steps & Passing Guide</span>
+          <span>🚨 Passing Guide</span>
         </button>
       </div>
 
-      {/* SUB-TAB 1: LIVE CONVERSATIONAL CHAT */}
+      {/* SUB-TAB 1: LIVE CARE CHAT */}
       {activeSection === 'chat' && (
-        <div className="bg-white border border-neutral-200 rounded-3xl shadow-sm overflow-hidden flex flex-col h-[640px]">
+        <div className="bg-white border border-neutral-200 rounded-3xl p-4 sm:p-6 space-y-4 shadow-sm">
           
-          {/* Chat Header */}
-          <div className="bg-[#141b2b] text-white p-4 px-6 flex flex-wrap justify-between items-center gap-3 border-b border-amber-500/30">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-[#991b1b] flex items-center justify-center font-bold text-xs border border-amber-400/50 shadow-sm">
-                BFH
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <h4 className="font-serif-title font-bold text-sm">
-                    Benta Family Care Assistant
-                  </h4>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                </div>
-                <p className="text-[11px] text-amber-200/90">
-                  Case #{activeCase.caseNumber} • Dedicated to {activeCase.decedent.legalName}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <a
-                href="tel:2122818850"
-                className="bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-400/40 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center space-x-1.5"
+          <div className="h-[480px] overflow-y-auto pr-2 space-y-4">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
               >
-                <PhoneCall className="w-3.5 h-3.5 text-amber-300" />
-                <span>Call Director: (212) 281-8850</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Chat Scroll View */}
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 bg-neutral-50/50">
-            {messages.map((msg) => {
-              const isBot = msg.sender === 'bot';
-
-              return (
                 <div
-                  key={msg.id}
-                  className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fadeIn`}
+                  className={`max-w-[85%] sm:max-w-[75%] rounded-3xl p-4 sm:p-5 text-xs sm:text-sm leading-relaxed ${
+                    msg.sender === 'user'
+                      ? 'bg-[#991b1b] text-white rounded-br-none shadow-md'
+                      : 'bg-neutral-50 text-neutral-800 border border-neutral-200 rounded-bl-none shadow-sm'
+                  }`}
                 >
-                  <div className={`max-w-2xl rounded-3xl p-4 sm:p-5 space-y-2.5 shadow-sm text-xs ${
-                    isBot 
-                      ? 'bg-white border border-neutral-200 text-neutral-800 rounded-tl-sm' 
-                      : 'bg-[#991b1b] text-white rounded-tr-sm shadow-md shadow-red-950/20'
-                  }`}>
-                    
-                    {/* Message Body */}
-                    <div className="leading-relaxed whitespace-pre-line">
-                      {msg.text}
+                  <p className="whitespace-pre-line">{msg.text}</p>
+
+                  {msg.citation && (
+                    <div className="mt-3 pt-2.5 border-t border-neutral-200/60 text-[10px] text-neutral-400 flex items-center justify-between">
+                      <span className="font-serif italic">{msg.citation}</span>
+                      <span>{msg.timestamp}</span>
                     </div>
-
-                    {/* Citation Tag */}
-                    {msg.citation && (
-                      <div className="text-[10px] text-neutral-500 font-mono border-t border-neutral-100 pt-2 flex items-center space-x-1">
-                        <Info className="w-3 h-3 text-[#b45309]" />
-                        <span>Source: {msg.citation}</span>
-                      </div>
-                    )}
-
-                    {/* Action Suggestion Buttons */}
-                    {msg.suggestedActions && msg.suggestedActions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-2 border-t border-neutral-100">
-                        {msg.suggestedActions.map((btn, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleActionClick(btn.actionKey)}
-                            className="bg-amber-50 hover:bg-amber-100 text-[#b45309] border border-amber-300 text-[11px] font-bold px-2.5 py-1 rounded-lg transition flex items-center space-x-1"
-                          >
-                            <span>{btn.label}</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <span className={`text-[9px] block text-right ${isBot ? 'text-neutral-400' : 'text-red-200'}`}>
-                      {msg.timestamp}
-                    </span>
-                  </div>
+                  )}
                 </div>
-              );
-            })}
+
+                {/* Suggested Action Chips */}
+                {msg.suggestedActions && msg.suggestedActions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2 ml-1">
+                    {msg.suggestedActions.map((action, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleActionClick(action.actionKey)}
+                        className="px-3 py-1 rounded-full bg-white border border-amber-900/30 text-amber-900 text-xs font-semibold hover:bg-amber-50 hover:border-amber-700 transition shadow-sm flex items-center space-x-1"
+                      >
+                        <span>{action.label}</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
 
             {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-neutral-200 rounded-2xl p-3 px-4 flex items-center space-x-2 text-xs text-neutral-500 shadow-sm">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#991b1b]" />
-                  <span>Consulting Benta Care Knowledge Base...</span>
-                </div>
+              <div className="flex items-center space-x-2 text-neutral-400 text-xs italic pl-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" />
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce delay-150" />
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce delay-300" />
+                <span>Benta Care Desk is consulting statutory guidelines...</span>
               </div>
             )}
-
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Preset Quick Query Suggestions */}
-          <div className="bg-neutral-100/80 border-t border-neutral-200 p-2.5 px-4 flex items-center space-x-2 overflow-x-auto text-[11px]">
-            <span className="font-bold text-neutral-500 shrink-0">Popular:</span>
-            <button
-              onClick={() => handleSendMessage(undefined, 'What VA veteran burial benefits and military honors are available?')}
-              className="bg-white hover:bg-neutral-200 text-neutral-700 px-3 py-1 rounded-lg border border-neutral-300 font-medium whitespace-nowrap transition"
-            >
-              🎖️ VA Veteran Benefits
-            </button>
-            <button
-              onClick={() => handleSendMessage(undefined, 'How do we apply for NYC HRA $1,700 burial assistance?')}
-              className="bg-white hover:bg-neutral-200 text-neutral-700 px-3 py-1 rounded-lg border border-neutral-300 font-medium whitespace-nowrap transition"
-            >
-              💰 NYC HRA $1,700 Aid
-            </button>
-            <button
-              onClick={() => handleSendMessage(undefined, 'Who has legal Right to Control funeral decisions under NY law (PHL 4201)?')}
-              className="bg-white hover:bg-neutral-200 text-neutral-700 px-3 py-1 rounded-lg border border-neutral-300 font-medium whitespace-nowrap transition"
-            >
-              ⚖️ NY Right to Control
-            </button>
-            <button
-              onClick={() => handleSendMessage(undefined, 'How does interstate transport to Woodlawn Crematory work?')}
-              className="bg-white hover:bg-neutral-200 text-neutral-700 px-3 py-1 rounded-lg border border-neutral-300 font-medium whitespace-nowrap transition"
-            >
-              🚗 Woodlawn Transfer
-            </button>
-          </div>
-
-          {/* Chat Input Box */}
-          <form onSubmit={handleSendMessage} className="p-3 sm:p-4 bg-white border-t border-neutral-200 flex items-center gap-2">
+          {/* Chat Input */}
+          <form onSubmit={(e) => handleSendMessage(e)} className="pt-2 border-t border-neutral-200 flex items-center gap-2">
             <input
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="Ask about financial aid, NY laws, VA benefits, service times, or logistics..."
-              className="flex-1 bg-neutral-50 border border-neutral-300 rounded-2xl px-4 py-3 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
+              placeholder="Ask about floral arrangements, veteran honors, HRA aid, music..."
+              className="flex-1 px-4 py-3 rounded-2xl bg-neutral-50 border border-neutral-200 text-xs sm:text-sm text-neutral-900 focus:outline-none focus:border-amber-600 focus:bg-white transition"
             />
             <button
               type="submit"
-              disabled={!userInput.trim()}
-              className="bg-[#991b1b] hover:bg-red-800 disabled:opacity-40 text-white p-3 rounded-2xl font-bold text-xs transition flex items-center justify-center shadow-md shadow-red-950/20"
+              disabled={!userInput.trim() || isTyping}
+              className="p-3.5 rounded-2xl bg-[#991b1b] hover:bg-red-800 text-white font-bold transition disabled:opacity-50 shadow-md"
             >
               <Send className="w-4 h-4" />
             </button>
           </form>
+
         </div>
       )}
 
-      {/* SUB-TAB 2: FINANCIAL BENEFITS & VETERAN SUPPORT (Matching #financial-benefits) */}
-      {activeSection === 'financial' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+      {/* SUB-TAB 2: HARLEM FLORIST GUILD BOUTIQUE */}
+      {activeSection === 'floral' && (
+        <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-5">
             <div>
               <span className="text-[#b45309] text-[11px] font-bold uppercase tracking-widest block mb-1">
-                Government Grants & Assistance Programs
+                Handcrafted Sympathy & Floral Tributes
               </span>
               <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
-                Financial Benefits & Veteran Support Center
+                Harlem Florist Guild Collection
               </h3>
-              <p className="text-xs text-neutral-600 max-w-3xl mt-1">
-                Benta's Funeral Home assists families in securing all eligible public benefits, veteran entitlements, and insurance claims to minimize out-of-pocket expenses.
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Direct partnership with <strong>Daniela’s Flower Shop (Broadway)</strong> and <strong>Barbara’s Flowers (FDB)</strong> with direct delivery to Benta's Sanctuary.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsFloralModalOpen(true)}
+              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition shrink-0"
+            >
+              <ShoppingBag className="w-4 h-4" /> Open Full Floral Boutique (Stripe 1-Click)
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {HARLEM_FLORAL_CATALOG.slice(0, 6).map((item) => (
+              <div 
+                key={item.id}
+                className="bg-neutral-50 rounded-2xl border border-neutral-200 overflow-hidden flex flex-col justify-between hover:shadow-md transition group"
+              >
+                <div className="relative aspect-[16/10] overflow-hidden bg-neutral-200">
+                  <img 
+                    src={item.imageUrl} 
+                    alt={item.name} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                  />
+                  <span className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full text-xs font-bold bg-black/80 backdrop-blur-md text-amber-300">
+                    ${item.price}
+                  </span>
+                </div>
+                <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                      {item.categoryLabel}
+                    </span>
+                    <h4 className="font-serif-title font-bold text-sm text-neutral-900 mt-0.5">
+                      {item.name}
+                    </h4>
+                    <p className="text-xs text-neutral-600 line-clamp-2 mt-1">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-neutral-200/80 flex items-center justify-between">
+                    <span className="text-[11px] text-neutral-500">{item.floristName.split(' ')[0]}</span>
+                    <button
+                      onClick={() => setIsFloralModalOpen(true)}
+                      className="px-3 py-1.5 rounded-xl bg-[#991b1b] hover:bg-red-800 text-white text-xs font-bold transition shadow-sm"
+                    >
+                      Send Tribute →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: MEMORIAL CANDLE LIGHTING & LIVING WALL */}
+      {activeSection === 'candles' && (
+        <div className="bg-stone-900 text-stone-100 rounded-3xl p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-900/40">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-800 pb-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <Flame className="w-6 h-6 text-amber-500 animate-pulse" />
+                <h3 className="font-serif-title text-2xl font-bold text-amber-100">
+                  Perpetual Memorial Candle & Living Memory Wall
+                </h3>
+              </div>
+              <p className="text-xs text-stone-400 mt-1">
+                {candleCount} candles lit in loving celebration of <strong>{activeCase.decedent.legalName}</strong>.
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-stone-950 px-4 py-2 rounded-2xl border border-amber-900/50">
+              <span className="text-2xl font-bold text-amber-400 font-mono">{candleCount}</span>
+              <span className="text-xs text-stone-400 uppercase font-bold tracking-wider leading-tight">
+                Flames<br />Burning
+              </span>
+            </div>
+          </div>
+
+          {/* Form to Light a Candle */}
+          <form onSubmit={handleLightCandle} className="bg-stone-950/80 border border-amber-900/50 rounded-2xl p-6 space-y-4">
+            <h4 className="font-serif-title font-bold text-sm text-amber-200 flex items-center gap-2">
+              <Flame className="w-4 h-4 text-amber-400" /> Light a Digital Candle & Share a Sacred Scripture
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] text-stone-400 block mb-1">Your Full Name</label>
+                <input 
+                  type="text"
+                  value={candleAuthorName}
+                  onChange={(e) => setCandleAuthorName(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-stone-400 block mb-1">Relationship to Decedent</label>
+                <input 
+                  type="text"
+                  value={candleRelationship}
+                  onChange={(e) => setCandleRelationship(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] text-stone-400 block mb-1">Personal Message of Solace</label>
+              <textarea 
+                rows={2}
+                value={candleNote}
+                onChange={(e) => setCandleNote(e.target.value)}
+                placeholder="Share a heartfelt thought or prayer..."
+                className="w-full px-3.5 py-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-100 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] text-stone-400 block mb-1">Anchor with Scripture Verse</label>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {SCRIPTURE_PRESETS.map((scrip, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedScripture(scrip)}
+                    className={`p-2 rounded-xl text-left text-[11px] border transition ${
+                      selectedScripture.reference === scrip.reference
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-200 font-bold'
+                        : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+                    }`}
+                  >
+                    <span className="block font-bold">{scrip.reference}</span>
+                    <span className="text-[9px] opacity-75">{scrip.tradition}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-amber-200/80 italic mt-2 p-2.5 rounded-lg bg-stone-900/60 border border-stone-800">
+                "{selectedScripture.text}"
               </p>
             </div>
 
-            {/* Benefit Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Featured Card: Veteran Military Honors & VA Benefits */}
-              <div className="md:col-span-2 bg-gradient-to-br from-[#330b0f] via-[#24070a] to-[#160305] text-white p-6 sm:p-8 rounded-3xl border-2 border-red-500/40 shadow-xl space-y-5 relative overflow-hidden">
-                <div className="flex flex-wrap justify-between items-start gap-4 relative z-10">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ed1c24] to-[#ad1118] text-white flex items-center justify-center font-bold text-xl shadow-lg">
-                      <Flag className="w-6 h-6 text-amber-300" />
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg"
+            >
+              <Flame className="w-4 h-4 fill-stone-950" /> Light Candle in Honor of {activeCase.decedent.legalName}
+            </button>
+          </form>
+
+          {/* Living Memorial Wall Feed */}
+          <div className="space-y-4">
+            <h4 className="font-serif-title text-base font-bold text-amber-100 flex items-center gap-2">
+              <span>🕊️</span> Living Tributes & Condolences Feed
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {candleList.map((c) => (
+                <div 
+                  key={c.id}
+                  className="p-5 rounded-2xl bg-stone-950/70 border border-stone-800 space-y-3 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between border-b border-stone-900 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3.5 h-3.5 rounded-full shadow-lg animate-pulse"
+                          style={{ backgroundColor: c.flameColor }}
+                        />
+                        <span className="font-bold text-xs text-amber-200">{c.author}</span>
+                      </div>
+                      <span className="text-[10px] text-stone-400">{c.litAt}</span>
                     </div>
+
+                    <p className="text-xs text-stone-300 italic pt-2 leading-relaxed">
+                      "{c.message}"
+                    </p>
+                  </div>
+
+                  {c.scripture && (
+                    <div className="text-[10px] font-mono text-amber-400/90 pt-2 border-t border-stone-900">
+                      📖 {c.scripture}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* SUB-TAB 4: SACRED HYMNS & SERVICE MUSIC PLAYLIST */}
+      {activeSection === 'music' && (
+        <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-5">
+            <div>
+              <span className="text-[#b45309] text-[11px] font-bold uppercase tracking-widest block mb-1">
+                Harlem Sacred Repertoire & Organ Guild
+              </span>
+              <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
+                Service Hymns & Sanctuary Music
+              </h3>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Curate the prelude, solo, and recessional music for {activeCase.decedent.legalName}’s service in Chapel 1.
+              </p>
+            </div>
+
+            <div className="px-3.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
+              <Disc className="w-4 h-4 text-amber-700" />
+              <span>{selectedServiceTracks.length} Selected for Director Cue Sheet</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {SACRED_HYMNS_CATALOG.map((track) => {
+              const isPlaying = playingTrackId === track.id;
+              const isSelected = selectedServiceTracks.includes(track.id);
+
+              return (
+                <div 
+                  key={track.id}
+                  className={`p-4 rounded-2xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                    isPlaying 
+                      ? 'bg-amber-50/80 border-amber-400 shadow-sm' 
+                      : 'bg-neutral-50 border-neutral-200 hover:border-neutral-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3.5">
+                    <button
+                      onClick={() => handleTogglePlayHymn(track.id)}
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center transition shadow-sm shrink-0 ${
+                        isPlaying 
+                          ? 'bg-amber-600 text-white' 
+                          : 'bg-white text-neutral-800 border border-neutral-200 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                    </button>
+
                     <div>
-                      <span className="bg-red-500/30 text-red-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-red-500/40">
-                        United States Armed Forces
-                      </span>
-                      <h4 className="font-serif-title text-lg sm:text-xl font-bold text-white mt-1">
-                        Veteran Military Honors & VA National Cemetery Benefits
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-serif-title font-bold text-sm text-neutral-900">
+                          {track.title}
+                        </h4>
+                        {track.isDirectorRecommended && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800">
+                            Director Pick
+                          </span>
+                        )}
+                        <span className="text-[10px] uppercase font-bold text-neutral-400 bg-neutral-200 px-2 py-0.5 rounded">
+                          {track.category}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-600 mt-0.5">
+                        {track.artistOrChoir} • {track.duration} • <span className="font-mono text-[10px] text-amber-800">{track.scriptureAnchor}</span>
+                      </p>
                     </div>
                   </div>
 
-                  <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-bold px-3 py-1 rounded-full">
-                    {activeCase.decedent.veteran ? 'Active Veteran Case' : 'Federal Entitlement'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-neutral-200 relative z-10">
-                  <ul className="space-y-2.5">
-                    <li className="flex items-start space-x-2">
-                      <span className="text-amber-400 font-bold">★</span>
-                      <span><strong>Free VA National Cemetery Plot:</strong> Calverton, Long Island National, or BG William C. Doyle NJ with perpetual care.</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-amber-400 font-bold">★</span>
-                      <span><strong>Military Funeral Honors:</strong> 2-person uniform honor guard, live folding of the American burial flag, and playing of *Taps*.</span>
-                    </li>
-                  </ul>
-
-                  <ul className="space-y-2.5">
-                    <li className="flex items-start space-x-2">
-                      <span className="text-amber-400 font-bold">★</span>
-                      <span><strong>Presidential Memorial Certificate:</strong> Gold-embossed parchment signed by the President of the United States.</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-amber-400 font-bold">★</span>
-                      <span><strong>VA Burial Allowance:</strong> Cash allowance between <strong>$893 and $2,000+</strong> based on service qualifications.</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="bg-red-950/60 border border-red-500/30 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs text-red-200">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="w-4 h-4 text-amber-300" />
-                    <span><strong>Required Document:</strong> Military Discharge Certificate (Form DD-214). BFH will assist with record requests if lost.</span>
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    <button
+                      onClick={() => handleToggleServiceHymnSelection(track.id)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                        isSelected 
+                          ? 'bg-emerald-600 text-white shadow-sm' 
+                          : 'bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Selected on Program
+                        </>
+                      ) : (
+                        <>+ Add to Program</>
+                      )}
+                    </button>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 5: S3 GOLDEN VAULT MULTI-MEDIA UPLOADER */}
+      {activeSection === 'vault' && (
+        <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-5">
+            <div>
+              <span className="text-[#b45309] text-[11px] font-bold uppercase tracking-widest block mb-1">
+                Cryptographically Sealed Cloud Storage
+              </span>
+              <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
+                S3 Golden Record Media Vault
+              </h3>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Permanently archive high-res portrait photos, Living Voice audio remembrances, and statutory certificates into Case #{activeCase.caseNumber}.
+              </p>
+            </div>
+
+            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>SHA-256 Verified Immutable Storage</span>
+            </div>
+          </div>
+
+          {/* Quick Uploader Card */}
+          <form onSubmit={handleSimulatedVaultUpload} className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-4">
+            <h4 className="font-serif-title font-bold text-sm text-neutral-900 flex items-center gap-2">
+              <UploadCloud className="w-4 h-4 text-amber-600" /> Upload New Asset Directly to Golden Vault
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] text-neutral-600 block mb-1">Asset Category</label>
+                <select 
+                  value={mediaUploadCategory}
+                  onChange={(e) => setMediaUploadCategory(e.target.value as any)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-xs text-neutral-900 focus:outline-none focus:border-amber-600"
+                >
+                  <option value="memorial_photo">📸 Memorial Portrait Photo (4K)</option>
+                  <option value="living_voice_audio">🎙️ Living Voice Audio Recording</option>
+                  <option value="pdf_contract">📄 Signed PDF Affidavit / Document</option>
+                  <option value="nys_permit">📜 NYS Burial-Transit Permit</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-[11px] text-neutral-600 block mb-1">File Name or Descriptive Title</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={uploadFileName}
+                    onChange={(e) => setUploadFileName(e.target.value)}
+                    placeholder="e.g. Evelyn_Family_Portrait_1975.jpg"
+                    className="flex-1 px-3 py-2 rounded-xl bg-white border border-neutral-300 text-xs text-neutral-900 focus:outline-none focus:border-amber-600"
+                  />
                   <button
-                    onClick={() => handleSendMessage(undefined, 'How do we request DD-214 military honors for Arthur Vance?')}
-                    className="bg-amber-400 hover:bg-amber-300 text-neutral-900 font-bold text-xs px-3.5 py-1.5 rounded-xl transition shadow-sm"
+                    type="submit"
+                    disabled={!uploadFileName.trim() || isUploadingMedia}
+                    className="px-5 py-2 rounded-xl bg-[#991b1b] hover:bg-red-800 text-white text-xs font-bold transition disabled:opacity-50 shadow-md flex items-center gap-2"
                   >
-                    Request Honors Coordination
+                    {isUploadingMedia ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sealing Hash...
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-3.5 h-3.5" /> Seal to Vault
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
+            </div>
+          </form>
 
-              {/* Card 2: NYC HRA Burial Assistance */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-3xl p-6 space-y-4 shadow-sm flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-100 text-[#991b1b] flex items-center justify-center font-bold">
-                      <DollarSign className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-[#b45309] uppercase tracking-wider">NYC Department of Social Services</span>
-                      <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                        NYC HRA Burial Assistance (Up to $1,700)
-                      </h4>
-                    </div>
-                  </div>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    Low-income NYC residents can receive up to <strong>$1,700</strong> toward funeral or cremation expenses, provided overall costs remain under the statutory cap ($3,400).
-                  </p>
-                  <ul className="text-xs text-neutral-700 space-y-1.5 list-disc list-inside">
-                    <li>Applications accepted within 120 days from date of death.</li>
-                    <li>BFH provides certified itemized bill formatted for HRA audit.</li>
-                  </ul>
-                </div>
+          {/* Vault Assets Grid */}
+          <div className="space-y-3">
+            <h4 className="font-serif-title font-bold text-sm text-neutral-900">
+              Preserved Vault Assets ({vaultAssets.length})
+            </h4>
 
-                <button
-                  onClick={() => handleSendMessage(undefined, 'Can BFH provide the itemized bill for NYC HRA Burial Assistance?')}
-                  className="w-full bg-white hover:bg-neutral-100 text-[#991b1b] border border-red-200 font-bold text-xs py-2.5 rounded-xl transition"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {vaultAssets.map((asset) => (
+                <div 
+                  key={asset.id}
+                  className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 flex items-start justify-between gap-3 text-xs"
                 >
-                  Generate HRA Packet Info
-                </button>
-              </div>
-
-              {/* Card 3: Social Security Lump-Sum Benefit */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-3xl p-6 space-y-4 shadow-sm flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold">
-                      <Award className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Social Security Administration</span>
-                      <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                        Social Security $255 Lump-Sum (SSA-721)
-                      </h4>
-                    </div>
+                  <div className="space-y-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                      {asset.category.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <h5 className="font-bold text-neutral-900 break-all">{asset.fileName}</h5>
+                    <p className="text-[11px] text-neutral-500 font-mono">
+                      SHA: {asset.sha256Hash.slice(0, 18)}... • {(asset.fileSizeBytes / 1000000).toFixed(2)} MB
+                    </p>
+                    <p className="text-[10px] text-neutral-400">
+                      Uploaded by {asset.uploadedBy} • {asset.uploadedAt}
+                    </p>
                   </div>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    A one-time federal payment of <strong>$255</strong> is disbursed to a surviving spouse or eligible dependent children under Social Security Act § 402(i).
-                  </p>
-                  <ul className="text-xs text-neutral-700 space-y-1.5 list-disc list-inside">
-                    <li>BFH transmits the Electronic Statement of Death (SSA-721).</li>
-                    <li>Funds are wired directly to the surviving spouse's account.</li>
-                  </ul>
-                </div>
 
-                <button
-                  onClick={() => handleSendMessage(undefined, 'How is the Social Security $255 lump sum death payment processed?')}
-                  className="w-full bg-white hover:bg-neutral-100 text-blue-900 border border-blue-200 font-bold text-xs py-2.5 rounded-xl transition"
-                >
-                  Check SSA-721 Filing Status
-                </button>
-              </div>
-
-              {/* Card 4: NYS Office of Victim Services (OVS) */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-3xl p-6 space-y-4 shadow-sm flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-900 flex items-center justify-center font-bold">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider">Crime Victim Compensation</span>
-                      <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                        NYS OVS Funeral Aid (Up to $6,000)
-                      </h4>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => window.open(asset.publicUrl, '_blank')}
+                      className="p-2 rounded-lg bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-700 transition"
+                      title="Open Public URL"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteVaultAsset(asset.id)}
+                      className="p-2 rounded-lg bg-white border border-red-200 hover:bg-red-50 text-red-600 transition"
+                      title="Remove Asset"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    If the loss resulted from a violent crime or vehicular crime, the NYS Office of Victim Services reimburses up to <strong>$6,000</strong> for funeral and burial expenses.
-                  </p>
-                  <ul className="text-xs text-neutral-700 space-y-1.5 list-disc list-inside">
-                    <li>No out-of-pocket maximum restriction.</li>
-                    <li>BFH advocates on your family's behalf with police/investigators.</li>
-                  </ul>
                 </div>
-
-                <button
-                  onClick={() => handleSendMessage(undefined, 'How do we apply for NYS Office of Victim Services OVS reimbursement?')}
-                  className="w-full bg-white hover:bg-neutral-100 text-purple-900 border border-purple-200 font-bold text-xs py-2.5 rounded-xl transition"
-                >
-                  Learn About OVS Claims
-                </button>
-              </div>
-
-              {/* Card 5: Medicaid Pre-Need Spend-Down & Trust */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-3xl p-6 space-y-4 shadow-sm flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-[#b45309] flex items-center justify-center font-bold">
-                      <Heart className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-[#b45309] uppercase tracking-wider">Asset Protection & PrePlan</span>
-                      <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                        Medicaid Spend-Down & 100% Trust Escrow
-                      </h4>
-                    </div>
-                  </div>
-                  <p className="text-xs text-neutral-600 leading-relaxed">
-                    Under NYS General Business Law § 453, 100% of pre-need funds are deposited in state-audited escrow trusts (NYS PrePlan) and are 100% exempt from Medicaid asset clawback.
-                  </p>
-                  <ul className="text-xs text-neutral-700 space-y-1.5 list-disc list-inside">
-                    <li>FDIC-insured and earns compounded interest.</li>
-                    <li>Protects family legacy before long-term healthcare spend-down.</li>
-                  </ul>
-                </div>
-
-                <button
-                  onClick={() => handleSendMessage(undefined, 'Tell me about Medicaid spend-down rules and NYS PrePlan funeral trusts.')}
-                  className="w-full bg-white hover:bg-neutral-100 text-[#b45309] border border-amber-200 font-bold text-xs py-2.5 rounded-xl transition"
-                >
-                  Explore PrePlan Trusts
-                </button>
-              </div>
-
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* SUB-TAB 3: TRI-STATE FUNERAL LAWS (NY / NJ / CT) */}
-      {activeSection === 'laws' && (
+      {/* SUB-TAB 6: FINANCIAL & VETERAN BENEFITS */}
+      {activeSection === 'financial' && (
         <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
-          <div className="flex flex-wrap justify-between items-start gap-4 border-b border-neutral-200 pb-4">
-            <div>
-              <span className="text-[#b45309] text-[11px] font-bold uppercase tracking-widest block mb-1">
-                Consumer Protection & Statutory Transparency
-              </span>
-              <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
-                Tri-State Funeral Law & Legal Rights Guide
-              </h3>
+          <div>
+            <span className="text-[#b45309] text-[11px] font-bold uppercase tracking-widest block mb-1">
+              Statutory Aid & Claims Desk
+            </span>
+            <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
+              Government & Military Burial Assistance
+            </h3>
+            <p className="text-xs text-neutral-600">
+              We directly prepare documentation for all eligible federal and local benefit claims.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* NYC HRA Burial Assistance */}
+            <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3">
+              <div className="flex items-center space-x-2 text-emerald-800">
+                <DollarSign className="w-5 h-5 text-emerald-700" />
+                <h4 className="font-serif-title font-bold text-base text-neutral-900">
+                  NYC HRA Burial Assistance ($1,700)
+                </h4>
+              </div>
               <p className="text-xs text-neutral-600">
-                Understand your statutory rights regarding Right to Control (Next-of-Kin), Embalming disclosures, and 100% Pre-Need Trust security.
+                Provides up to $1,700 for qualifying low-income NYC residents toward burial or cremation. Total funeral cost cap is $3,400. Applications accepted within 120 days of death.
               </p>
+              <span className="text-[10px] text-neutral-400 block font-mono">NYC Admin Code Title 21</span>
             </div>
 
-            {/* State Selector Tabs */}
-            <div className="flex bg-neutral-100 p-1 rounded-xl text-xs font-bold">
+            {/* VA Veteran Benefits */}
+            <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3">
+              <div className="flex items-center space-x-2 text-blue-800">
+                <ShieldCheck className="w-5 h-5 text-blue-700" />
+                <h4 className="font-serif-title font-bold text-base text-neutral-900">
+                  U.S. Department of Veterans Affairs
+                </h4>
+              </div>
+              <p className="text-xs text-neutral-600">
+                Free burial plot in any VA National Cemetery, military honors ceremony (Taps & Flag Folding), Presidential Memorial Certificate, and $893–$2,000+ burial allowance.
+              </p>
+              <span className="text-[10px] text-neutral-400 block font-mono">38 CFR § 3.1700</span>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 7: NY STATE LAWS */}
+      {activeSection === 'laws' && (
+        <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 pb-4">
+            <div>
+              <span className="text-[#b45309] text-[11px] font-bold uppercase tracking-widest block mb-1">
+                Tri-State Statutory Compliance
+              </span>
+              <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
+                Funeral & Final Disposition Rights
+              </h3>
+            </div>
+            
+            <div className="flex items-center space-x-1.5 bg-neutral-100 p-1 rounded-xl">
               {(['NY', 'NJ', 'CT'] as const).map((st) => (
                 <button
                   key={st}
                   onClick={() => setSelectedState(st)}
-                  className={`px-4 py-1.5 rounded-lg transition ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
                     selectedState === st
-                      ? 'bg-[#991b1b] text-white shadow-sm'
-                      : 'text-neutral-600 hover:text-neutral-900'
+                      ? 'bg-white text-neutral-900 shadow-sm'
+                      : 'text-neutral-500 hover:text-neutral-900'
                   }`}
                 >
-                  {st === 'NY' ? 'New York (NYS)' : st === 'NJ' ? 'New Jersey (NJ)' : 'Connecticut (CT)'}
+                  {st === 'NY' ? 'New York (PHL 4201)' : st === 'NJ' ? 'New Jersey' : 'Connecticut'}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* New York Law Explorer */}
           {selectedState === 'NY' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* NY Right of Disposition */}
-                <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3">
-                  <div className="flex items-center space-x-2 text-[#991b1b]">
-                    <UserCheck className="w-5 h-5" />
-                    <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                      Legal Right of Disposition (NY PHL § 4201)
-                    </h4>
-                  </div>
-                  <p className="text-xs text-neutral-600">
-                    Under New York Public Health Law § 4201, authority to control funeral and final disposition decisions follows a strict statutory hierarchy:
-                  </p>
-                  <ol className="text-xs text-neutral-800 space-y-1.5 list-decimal list-inside bg-white p-4 rounded-2xl border border-neutral-200">
-                    <li><strong>Designated Agent:</strong> Named in signed NYS form.</li>
-                    <li><strong>Surviving Spouse / Domestic Partner.</strong></li>
-                    <li><strong>Surviving Adult Children:</strong> (Majority vote).</li>
-                    <li><strong>Surviving Biological or Adoptive Parents.</strong></li>
-                    <li><strong>Surviving Adult Siblings.</strong></li>
-                    <li><strong>Court-Appointed Estate Administrator.</strong></li>
-                  </ol>
-                  <span className="text-[10px] text-neutral-400 block font-mono">NY Public Health Law § 4201</span>
-                </div>
-
-                {/* NY Embalming Rules */}
-                <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2 text-[#b45309]">
-                      <ShieldCheck className="w-5 h-5" />
-                      <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                        Embalming Consent (10 NYCRR § 77.7)
-                      </h4>
-                    </div>
-                    <p className="text-xs text-neutral-600">
-                      <strong>Embalming is NOT mandatory by New York law</strong> for all decedents. Families have the full legal right to select direct cremation, direct burial, or refrigeration without chemical embalming.
-                    </p>
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-900">
-                      <strong>Mandatory Rule:</strong> Funeral directors MUST obtain oral or written consent before performing embalming care.
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-neutral-400 block font-mono">10 NYCRR § 77.7 & NY DOH Directives</span>
-                </div>
-
-                {/* NY 100% Pre-Need Trust Law */}
-                <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3">
-                  <div className="flex items-center space-x-2 text-emerald-800">
-                    <DollarSign className="w-5 h-5 text-emerald-700" />
-                    <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                      100% Pre-Need Trust Escrow (NYS GBL § 453)
-                    </h4>
-                  </div>
-                  <p className="text-xs text-neutral-600">
-                    New York enforces the nation's strictest pre-need law: 100% of consumer funds must remain in interest-bearing escrow trusts (NYS PrePlan).
-                  </p>
-                  <ul className="text-xs text-neutral-800 space-y-1 list-disc list-inside">
-                    <li>100% of principal plus interest belongs to consumer.</li>
-                    <li>Revocable trusts are 100% refundable on demand.</li>
-                    <li>Irrevocable trusts qualify for Medicaid spend-downs.</li>
-                  </ul>
-                  <span className="text-[10px] text-neutral-400 block font-mono">NYS General Business Law § 453</span>
-                </div>
-
-                {/* FTC Funeral Rule & Price List */}
-                <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3">
-                  <div className="flex items-center space-x-2 text-blue-800">
-                    <FileText className="w-5 h-5 text-blue-700" />
-                    <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                      FTC Funeral Rule (16 CFR Part 453)
-                    </h4>
-                  </div>
-                  <p className="text-xs text-neutral-600">
-                    You have the right to select individual goods and services. Funeral homes are prohibited from charging handling fees for third-party caskets or urns.
-                  </p>
-                  <ul className="text-xs text-neutral-800 space-y-1 list-disc list-inside">
-                    <li>Written General Price List (GPL) required.</li>
-                    <li>Zero mark-up on government cash advances.</li>
-                  </ul>
-                  <span className="text-[10px] text-neutral-400 block font-mono">FTC 16 CFR Part 453</span>
-                </div>
-
+            <div className="space-y-4">
+              <div className="p-6 bg-neutral-50 rounded-3xl border border-neutral-200 space-y-3 text-xs text-neutral-700">
+                <h4 className="font-serif-title font-bold text-base text-neutral-900">
+                  NYS Right of Disposition Hierarchy (PHL § 4201)
+                </h4>
+                <ol className="list-decimal list-inside space-y-1.5">
+                  <li><strong>Designated Agent:</strong> Named in written, signed NYS form.</li>
+                  <li><strong>Surviving Spouse / Registered Domestic Partner:</strong> ({activeCase.informant.fullName}).</li>
+                  <li><strong>Surviving Adult Children:</strong> (Majority consensus).</li>
+                  <li><strong>Surviving Parents:</strong> Biological or adoptive.</li>
+                  <li><strong>Surviving Adult Siblings:</strong> Brothers and sisters.</li>
+                </ol>
               </div>
             </div>
           )}
 
-          {/* New Jersey Law Explorer */}
           {selectedState === 'NJ' && (
-            <div className="space-y-4 text-xs text-neutral-700">
-              <div className="p-6 bg-neutral-50 rounded-3xl border border-neutral-200 space-y-3">
-                <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                  New Jersey Right to Control (NJSA 45:27-22)
-                </h4>
-                <p>In New Jersey, custody and control priority starts with the <strong>Appointed Executor named in the Will</strong>, followed by Surviving Spouse/Partner, then majority of Adult Children.</p>
-                <span className="text-[10px] font-mono text-neutral-400">NJSA 45:27-22 / NJAC 13:36</span>
-              </div>
+            <div className="p-6 bg-neutral-50 rounded-3xl border border-neutral-200 space-y-3 text-xs text-neutral-700">
+              <h4 className="font-serif-title font-bold text-base text-neutral-900">
+                New Jersey Right to Control (NJSA 45:27-22)
+              </h4>
+              <p>In New Jersey, custody priority begins with the <strong>Appointed Executor named in the Will</strong>, followed by surviving spouse, then adult children.</p>
             </div>
           )}
 
-          {/* Connecticut Law Explorer */}
           {selectedState === 'CT' && (
-            <div className="space-y-4 text-xs text-neutral-700">
-              <div className="p-6 bg-neutral-50 rounded-3xl border border-neutral-200 space-y-3">
-                <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                  Connecticut Disposition Rights (CT Gen Stat § 45a-318)
-                </h4>
-                <p>Connecticut enforces a mandatory 48-hour waiting period and Medical Examiner Cremation Certificate ($150 fee) prior to cremation disposition.</p>
-                <span className="text-[10px] font-mono text-neutral-400">CT General Statutes § 45a-318 & § 19a-323</span>
-              </div>
+            <div className="p-6 bg-neutral-50 rounded-3xl border border-neutral-200 space-y-3 text-xs text-neutral-700">
+              <h4 className="font-serif-title font-bold text-base text-neutral-900">
+                Connecticut Disposition Rights (CT Gen Stat § 45a-318)
+              </h4>
+              <p>Connecticut enforces a mandatory 48-hour waiting period and Medical Examiner Cremation Certificate before disposition.</p>
             </div>
           )}
-
         </div>
       )}
 
-      {/* SUB-TAB 4: FIRST STEPS & CRISIS PASSING GUIDE */}
+      {/* SUB-TAB 8: PASSING GUIDE */}
       {activeSection === 'crisis' && (
         <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
           <div>
@@ -858,12 +1260,11 @@ We have recorded your inquiry. You can explore the **Financial Benefits** tab fo
               First Steps Following a Passing
             </h3>
             <p className="text-xs text-neutral-600">
-              Clear, step-by-step procedures based on where the passing occurred.
+              Step-by-step procedures based on where the passing occurred.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-            
             <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200 space-y-3">
               <h4 className="font-serif-title font-bold text-base text-neutral-900 flex items-center space-x-2">
                 <span>🏥</span>
@@ -871,7 +1272,7 @@ We have recorded your inquiry. You can explore the **Financial Benefits** tab fo
               </h4>
               <ol className="space-y-2 list-decimal list-inside text-neutral-700">
                 <li>Attending physician or nurse completes official Pronouncement of Death.</li>
-                <li>Inform the charge nurse that **Benta's Funeral Home (212-281-8850)** is your chosen provider.</li>
+                <li>Inform the charge nurse that <strong>Benta's Funeral Home (212-281-8850)</strong> is your chosen provider.</li>
                 <li>Sign the hospital release authorization (can be completed via eSign in our portal).</li>
                 <li>BFH transfer team arrives within 60–90 minutes into dignified custody.</li>
               </ol>
@@ -884,15 +1285,24 @@ We have recorded your inquiry. You can explore the **Financial Benefits** tab fo
               </h4>
               <ol className="space-y-2 list-decimal list-inside text-neutral-700">
                 <li>If under hospice care, call hospice nurse first. Otherwise call 911 for emergency response.</li>
-                <li>If police/OCME respond, obtain the **Medical Examiner Case Number**.</li>
+                <li>If police/OCME respond, obtain the <strong>Medical Examiner Case Number</strong>.</li>
                 <li>Call Benta's Funeral Home. We interface directly with OCME for case tracking.</li>
                 <li>Sign electronic OCME Release and custody transfer authorization.</li>
               </ol>
             </div>
-
           </div>
         </div>
       )}
+
+      {/* Floral Tribute Boutique Modal */}
+      <FloralTributeShopModal
+        isOpen={isFloralModalOpen}
+        onClose={() => setIsFloralModalOpen(false)}
+        activeCase={activeCase}
+        onOrderPlaced={(order) => {
+          alert(`Floral Order Succeeded! $${order.totalAmount}.00 charged via Stripe to ${order.senderName}. Dispatched to ${order.floristName}.`);
+        }}
+      />
 
     </div>
   );

@@ -11,6 +11,15 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+credentials.json
+service-account*.json
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +32,4 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+scratch/

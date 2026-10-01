@@ -17,7 +17,9 @@ import {
   RoomId,
   DirectorProfile,
   ServiceDirectorAssignment,
-  Director1099Voucher
+  Director1099Voucher,
+  PassThroughPayableCheck,
+  FirstCallIntakeFormData
 } from './lib/types/funeral';
 import {
   MOCK_CASES,
@@ -35,6 +37,13 @@ import {
   savePersistedState,
   STORAGE_KEYS
 } from './lib/storage/persistence';
+import {
+  createSignedSessionToken,
+  verifySessionToken,
+  getActiveManagerSession,
+  revokeManagerSession,
+  SessionToken
+} from './lib/storage/sessionAuth';
 
 // Public Components
 import { PublicNavbar } from './components/public/PublicNavbar';
@@ -76,9 +85,26 @@ import { ManagerDirectorSchedulingView } from './components/backoffice/ManagerDi
 import { ManagerPinLoginModal } from './components/backoffice/ManagerPinLoginModal';
 import { DirectorAssignmentModal } from './components/backoffice/DirectorAssignmentModal';
 import { PrintableFormAP47Modal } from './components/backoffice/PrintableFormAP47Modal';
+import { DocuSignEnvelopeModal } from './components/backoffice/DocuSignEnvelopeModal';
+import { QuickBooksSyncModal } from './components/backoffice/QuickBooksSyncModal';
+import { CashAdvanceCheckPrinterModal } from './components/backoffice/CashAdvanceCheckPrinterModal';
+import { FirstCallIntakeModal } from './components/backoffice/FirstCallIntakeModal';
+import { DiscrepancyGuardrailModal } from './components/backoffice/DiscrepancyGuardrailModal';
+import { DirectorDayOfServiceHUDModal } from './components/backoffice/DirectorDayOfServiceHUDModal';
+import { FamilyProofApprovalModal } from './components/backoffice/FamilyProofApprovalModal';
+import { TwilioGatewaySettingsModal } from './components/backoffice/TwilioGatewaySettingsModal';
+import { CloudSyncStorageModal } from './components/backoffice/CloudSyncStorageModal';
+import { AIGatewaySettingsModal } from './components/backoffice/AIGatewaySettingsModal';
+import { CommercialPressFulfillmentModal } from './components/backoffice/CommercialPressFulfillmentModal';
+import { WebcastLiveStreamHubModal } from './components/backoffice/WebcastLiveStreamHubModal';
+import { StripePaymentGatewayModal } from './components/backoffice/StripePaymentGatewayModal';
+import { IntegrationsCommandCenterModal } from './components/backoffice/IntegrationsCommandCenterModal';
+import { CaseLifecycleSimulatorModal } from './components/backoffice/CaseLifecycleSimulatorModal';
+import { createCaseFromFirstCall } from './lib/data/firstCallHelper';
 
 // Family Portal Component (with full 9-Part Obituary Writer Suite)
 import { FamilyPortalView } from './components/family/FamilyPortalView';
+import { InteractiveGuidedTourModal, TourTrack } from './components/ui/InteractiveGuidedTourModal';
 
 export function App() {
   // App View Mode: 'public' or 'backoffice'
@@ -131,6 +157,9 @@ export function App() {
   const [isWebcastModalOpen, setIsWebcastModalOpen] = useState(false);
   const [webcastTargetCase, setWebcastTargetCase] = useState<GoldenRecordCase | null>(null);
 
+  // Universal First Call & Intake Studio State
+  const [isFirstCallIntakeOpen, setIsFirstCallIntakeOpen] = useState(false);
+
   // First Call Removal & Custody Affidavit State
   const [isRemovalModalOpen, setIsRemovalModalOpen] = useState(false);
   const [removalTargetCase, setRemovalTargetCase] = useState<GoldenRecordCase | null>(null);
@@ -172,8 +201,8 @@ export function App() {
   );
   const [isNotificationHubOpen, setIsNotificationHubOpen] = useState(false);
 
-  // Executive Manager Suite & Director Scheduling State
-  const [isManagerAuthenticated, setIsManagerAuthenticated] = useState<boolean>(false);
+  // Executive Manager Suite & Cryptographic RBAC Session State
+  const [managerSession, setManagerSession] = useState<SessionToken | null>(() => getActiveManagerSession());
   const [isManagerPinModalOpen, setIsManagerPinModalOpen] = useState<boolean>(false);
   const [directorProfiles, setDirectorProfiles] = useState<DirectorProfile[]>(() => 
     loadPersistedState<DirectorProfile[]>(STORAGE_KEYS.DIRECTOR_PROFILES, INITIAL_DIRECTOR_PROFILES)
@@ -202,12 +231,196 @@ export function App() {
   const [currentRole, setCurrentRole] = useState<UserRole>('director');
   const [backOfficeTab, setBackOfficeTab] = useState<BackOfficeTab>('dashboard');
 
+  // Periodic Session Token Expiry & Tamper Verification Guard
+  useEffect(() => {
+    const checkSession = () => {
+      const active = getActiveManagerSession();
+      if (!active || !verifySessionToken(active, 'manager')) {
+        if (managerSession) setManagerSession(null);
+        if (currentRole === 'manager') {
+          setCurrentRole('director');
+          if (backOfficeTab === 'manager') {
+            setBackOfficeTab('dashboard');
+          }
+        }
+      }
+    };
+    const interval = setInterval(checkSession, 15000);
+    return () => clearInterval(interval);
+  }, [managerSession, currentRole, backOfficeTab]);
+
+  const handleLockManagerSuite = () => {
+    revokeManagerSession();
+    setManagerSession(null);
+    setCurrentRole('director');
+    if (backOfficeTab === 'manager') {
+      setBackOfficeTab('dashboard');
+    }
+    handleSendNotification({
+      id: `notif-${Date.now()}`,
+      caseId: activeCase.id,
+      decedentName: "Benta's Operations",
+      recipientName: 'Management Admin',
+      recipientPhone: '(212) 281-8850',
+      channel: 'sms',
+      type: 'portal_update',
+      title: '🔒 Executive Suite Locked',
+      bodyText: 'Manager session token revoked. Suite downgraded to Licensed Funeral Director role.',
+      sentAt: 'Just now',
+      status: 'delivered'
+    });
+  };
+
+  // Current Active Funeral Director (for director-level case filtering & claiming)
+  const [currentDirectorId, setCurrentDirectorId] = useState<string>('dir-fd-1'); // Default Beth Crowe (LFD)
+
   // Modals
   const [isArrangerOpen, setIsArrangerOpen] = useState(false);
   const [isESignOpen, setIsESignOpen] = useState(false);
   const [targetESignDoc, setTargetESignDoc] = useState<DocumentItem | null>(null);
   const [isWoodlawnDispatchOpen, setIsWoodlawnDispatchOpen] = useState(false);
   const [selectedServiceOption, setSelectedServiceOption] = useState<string>('full_cremation');
+
+  // DocuSign Legal eSign Suite State
+  const [isDocuSignModalOpen, setIsDocuSignModalOpen] = useState(false);
+  const [docuSignTargetCase, setDocuSignTargetCase] = useState<GoldenRecordCase | null>(null);
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const [isAIGatewayModalOpen, setIsAIGatewayModalOpen] = useState(false);
+  const [isPressModalOpen, setIsPressModalOpen] = useState(false);
+  const [isWebcastHubModalOpen, setIsWebcastHubModalOpen] = useState(false);
+  const [isStripeModalOpen, setIsStripeModalOpen] = useState(false);
+  const [stripeTargetCase, setStripeTargetCase] = useState<GoldenRecordCase | null>(null);
+
+  const handleOpenDocuSignModal = (c?: GoldenRecordCase) => {
+    setDocuSignTargetCase(c || activeCase);
+    setIsDocuSignModalOpen(true);
+  };
+
+  // QuickBooks Online Financial Integration State
+  const [isQuickBooksModalOpen, setIsQuickBooksModalOpen] = useState(false);
+  const [quickBooksTargetCase, setQuickBooksTargetCase] = useState<GoldenRecordCase | null>(null);
+
+  const handleOpenQuickBooksModal = (c?: GoldenRecordCase) => {
+    setQuickBooksTargetCase(c || activeCase);
+    setIsQuickBooksModalOpen(true);
+  };
+
+  // Enterprise Integrations Command Center Hub State
+  const [isIntegrationsCenterOpen, setIsIntegrationsCenterOpen] = useState(false);
+
+  // End-to-End Case Lifecycle Simulation Runner State
+  const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false);
+
+  // Cash Advance Pass-Through Check Generator State
+  const [isCheckPrinterModalOpen, setIsCheckPrinterModalOpen] = useState(false);
+  const [checkPrinterTargetCase, setCheckPrinterTargetCase] = useState<GoldenRecordCase | null>(null);
+
+  const handleOpenCheckPrinterModal = (c?: GoldenRecordCase) => {
+    setCheckPrinterTargetCase(c || activeCase);
+    setIsCheckPrinterModalOpen(true);
+  };
+
+  // 1. Multi-Document Discrepancy & NYS PHL § 4201 Guardrail State
+  const [isDiscrepancyModalOpen, setIsDiscrepancyModalOpen] = useState(false);
+  const [discrepancyTargetCase, setDiscrepancyTargetCase] = useState<GoldenRecordCase | null>(null);
+
+  const handleOpenDiscrepancyModal = (c?: GoldenRecordCase) => {
+    setDiscrepancyTargetCase(c || activeCase);
+    setIsDiscrepancyModalOpen(true);
+  };
+
+  // 2. Mobile Day-of-Service Director Pocket HUD State
+  const [isDirectorHUDModalOpen, setIsDirectorHUDModalOpen] = useState(false);
+  const [directorHUDTargetCase, setDirectorHUDTargetCase] = useState<GoldenRecordCase | null>(null);
+
+  const handleOpenDirectorHUDModal = (c?: GoldenRecordCase) => {
+    setDirectorHUDTargetCase(c || activeCase);
+    setIsDirectorHUDModalOpen(true);
+  };
+
+  // 3. Family Proof Approval & Commercial Press Lock State
+  const [isProofApprovalModalOpen, setIsProofApprovalModalOpen] = useState(false);
+  const [proofApprovalTargetCase, setProofApprovalTargetCase] = useState<GoldenRecordCase | null>(null);
+
+  const handleOpenProofApprovalModal = (c?: GoldenRecordCase) => {
+    setProofApprovalTargetCase(c || activeCase);
+    setIsProofApprovalModalOpen(true);
+  };
+
+  // 4. Twilio Live SMS Gateway Config Modal State
+  const [isTwilioGatewayModalOpen, setIsTwilioGatewayModalOpen] = useState(false);
+
+  // 5. Interactive Step-by-Step Guided Tour & Spotlight Tutorial State
+  const [isGuidedTourOpen, setIsGuidedTourOpen] = useState(false);
+  const [guidedTourInitialTrack, setGuidedTourInitialTrack] = useState<TourTrack>('director');
+
+  const handleOpenGuidedTour = (track: TourTrack = 'director') => {
+    setGuidedTourInitialTrack(track);
+    setIsGuidedTourOpen(true);
+  };
+
+  const handleLaunchToolFromTour = (modalKey: string) => {
+    setIsGuidedTourOpen(false);
+    switch (modalKey) {
+      case 'cases':
+        setViewMode('backoffice');
+        setCurrentRole('director');
+        setBackOfficeTab('dashboard');
+        break;
+      case 'first_call':
+        setIsFirstCallIntakeOpen(true);
+        break;
+      case 'contract':
+        setIsArrangerOpen(true);
+        break;
+      case 'edrs':
+        setIsEdrsModalOpen(true);
+        break;
+      case 'docusign':
+        handleOpenDocuSignModal(activeCase);
+        break;
+      case 'checks':
+        handleOpenCheckPrinterModal(activeCase);
+        break;
+      case 'hud':
+        handleOpenDirectorHUDModal(activeCase);
+        break;
+      case 'cloud':
+        setIsCloudModalOpen(true);
+        break;
+      case 'obituary':
+      case 'florist':
+      case 'memorial':
+      case 'music':
+        setViewMode('backoffice');
+        setCurrentRole('family');
+        break;
+      case 'webcast':
+        setIsWebcastHubModalOpen(true);
+        break;
+      case 'simulator':
+        setIsSimulationModalOpen(true);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleUpdatePassThroughChecks = (caseId: string, updatedChecks: PassThroughPayableCheck[]) => {
+    setCases(prev => prev.map(c => {
+      if (c.id === caseId) {
+        const currentStatement = c.statementOfGoods;
+        return {
+          ...c,
+          statementOfGoods: currentStatement ? {
+            ...currentStatement,
+            cashAdvanceChecks: updatedChecks
+          } : undefined
+        };
+      }
+      return c;
+    }));
+  };
 
   const activeCase = cases.find(c => c.id === activeCaseId) || cases[0];
 
@@ -459,6 +672,41 @@ export function App() {
     });
   };
 
+  // First Call Intake Case Generator & Bi-Directional Router
+  const handleCreateCaseFromIntake = (
+    formData: FirstCallIntakeFormData,
+    nextAction: 'open_removal' | 'open_appointment' | 'save_only'
+  ) => {
+    const newCase = createCaseFromFirstCall(formData, cases.length);
+    setCases(prev => [newCase, ...prev]);
+    setActiveCaseId(newCase.id);
+    setIsFirstCallIntakeOpen(false);
+
+    handleSendNotification({
+      id: `notif-intake-${Date.now()}`,
+      caseId: newCase.id,
+      decedentName: newCase.decedent.legalName,
+      recipientName: newCase.assignedDirector,
+      recipientPhone: '(212) 281-8850',
+      channel: 'sms',
+      type: 'service_schedule',
+      title: `NEW FIRST CALL INTAKE: ${newCase.decedent.legalName} (${newCase.caseNumber})`,
+      bodyText: `Intake logged by ${formData.callerName} (${formData.callerPhone}). Pickup: ${formData.facilityName}. Pathway: ${formData.intakePathway.toUpperCase()}. Assigned Lead: ${newCase.assignedDirector}.`,
+      sentAt: 'Just now',
+      status: 'delivered'
+    });
+
+    if (nextAction === 'open_removal') {
+      setRemovalTargetCase(newCase);
+      setIsRemovalModalOpen(true);
+    } else if (nextAction === 'open_appointment') {
+      setAppointmentTargetCase(newCase);
+      setIsAppointmentModalOpen(true);
+    } else {
+      setBackOfficeTab('golden_record');
+    }
+  };
+
   // Service Partner Network Handlers
   const handleAddServicePartner = (newPartner: ServicePartnerContact) => {
     setServicePartners(prev => [newPartner, ...prev]);
@@ -557,6 +805,138 @@ export function App() {
     }));
   };
 
+  // Case Claiming Handler (Each funeral director claims case before arrangements and after appointment made)
+  const handleClaimCase = (caseId: string) => {
+    const director = directorProfiles.find(d => d.id === currentDirectorId) || directorProfiles[2];
+    setCases(prev => prev.map(c => {
+      if (c.id === caseId) {
+        return {
+          ...c,
+          caseClaimStatus: 'claimed' as const,
+          assignedDirectorId: director.id,
+          assignedDirector: `${director.name} (${director.licenseNumber || 'LFD'})`,
+          notes: [
+            {
+              id: `note-${Date.now()}`,
+              author: 'Case Claiming Engine',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: `Case officially claimed by Licensed Funeral Director ${director.name} (${director.licenseNumber || 'LFD'}) prior to family arrangement conference.`
+            },
+            ...c.notes
+          ]
+        };
+      }
+      return c;
+    }));
+
+    handleSendNotification({
+      id: `notif-${Date.now()}`,
+      caseId: caseId,
+      decedentName: activeCase?.decedent?.legalName || 'Active Case',
+      recipientName: director.name,
+      recipientPhone: director.phone,
+      channel: 'sms',
+      type: 'portal_update',
+      title: '🎯 Case Claimed Successfully',
+      bodyText: `You have claimed responsibility for Case ${caseId}. Proceed with family arrangement conference and Form AP-47.`,
+      sentAt: 'Just now',
+      status: 'delivered'
+    });
+  };
+
+  // Manager Override Handler (Managers can reassign cases & staff to tasks)
+  const handleOverrideDirector = (caseId: string, newDirectorId: string) => {
+    const targetDir = directorProfiles.find(d => d.id === newDirectorId);
+    if (!targetDir) return;
+
+    setCases(prev => prev.map(c => {
+      if (c.id === caseId) {
+        return {
+          ...c,
+          caseClaimStatus: 'claimed' as const,
+          assignedDirectorId: targetDir.id,
+          assignedDirector: `${targetDir.name} (${targetDir.licenseNumber || 'LFD'})`,
+          notes: [
+            {
+              id: `note-${Date.now()}`,
+              author: 'Executive Manager Override',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: `Managerial staff reassignment: Case director overridden to ${targetDir.name} (${targetDir.licenseNumber || 'LFD'}).`
+            },
+            ...c.notes
+          ]
+        };
+      }
+      return c;
+    }));
+
+    handleSendNotification({
+      id: `notif-${Date.now()}`,
+      caseId: caseId,
+      decedentName: "Manager Roster Control",
+      recipientName: targetDir.name,
+      recipientPhone: targetDir.phone,
+      channel: 'sms',
+      type: 'partner_dispatch',
+      title: '👔 Case Responsibility Reassigned',
+      bodyText: `Executive Management has assigned you as lead director for Case ${caseId}.`,
+      sentAt: 'Just now',
+      status: 'delivered'
+    });
+  };
+
+  // DocuSign Save Handler
+  const handleSaveDocuSign = (caseId: string, envelopeData: any) => {
+    const caseToUpdate = cases.find(c => c.id === caseId) || docuSignTargetCase || activeCase;
+    const isSigned = envelopeData.status === 'completed';
+
+    const updatedDocs = caseToUpdate.documents.map(d => {
+      if (envelopeData.documentIds?.includes(d.id) && isSigned) {
+        return {
+          ...d,
+          status: 'signed' as DocumentStatus,
+          signedTimestamp: envelopeData.signedAt || new Date().toLocaleString(),
+          lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+      }
+      return d;
+    });
+
+    handleUpdateCase({
+      ...caseToUpdate,
+      docusignEnvelope: envelopeData,
+      currentPhase: isSigned && caseToUpdate.currentPhase === 'legal_bundle' ? 'permits_logistics' : caseToUpdate.currentPhase,
+      documents: updatedDocs,
+      notes: [
+        {
+          id: `note-${Date.now()}`,
+          author: 'DocuSign NYS ESRA Bridge',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `DocuSign envelope [${envelopeData.envelopeId}] status updated to: ${envelopeData.status.toUpperCase()}. Signer: ${envelopeData.recipientEmail}. Verification: ${envelopeData.idVerificationMethod}.`
+        },
+        ...caseToUpdate.notes
+      ]
+    });
+  };
+
+  // QuickBooks Sync Save Handler
+  const handleSaveQuickBooksSync = (caseId: string, syncData: any) => {
+    const caseToUpdate = cases.find(c => c.id === caseId) || quickBooksTargetCase || activeCase;
+    handleUpdateCase({
+      ...caseToUpdate,
+      quickbooksSync: syncData,
+      notes: [
+        {
+          id: `note-${Date.now()}`,
+          author: 'QuickBooks Online Sync Engine',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `QuickBooks Online sync complete! Customer Invoice #${syncData.invoiceNumber} ($${syncData.syncedAmount?.toFixed(2) || caseToUpdate.totalAmountDue.toFixed(2)}) created. ACH Bank match active.`
+        },
+        ...caseToUpdate.notes
+      ]
+    });
+  };
+
   const handleCaseCreatedFromArranger = (newCase: GoldenRecordCase) => {
     setCases(prev => [newCase, ...prev]);
     setActiveCaseId(newCase.id);
@@ -592,27 +972,40 @@ export function App() {
     // If role switched to Family, render the authentic Family Portal with 9-Part Obituary Studio
     if (currentRole === 'family') {
       return (
-        <FamilyPortalView
-          activeCase={activeCase}
-          cases={cases}
-          onSelectCase={(c) => setActiveCaseId(c.id)}
-          onUpdateCase={handleUpdateCase}
-          onOpenESignModal={(doc) => {
-            setTargetESignDoc(doc || null);
-            setIsESignOpen(true);
-          }}
-          onSendNotification={handleSendNotification}
-          onExitPortal={() => {
-            if (isStaffUser) {
-              setCurrentRole('director');
-            } else {
-              setViewMode('public');
-              setCurrentRole('director');
-              setIsStaffUser(true);
-            }
-          }}
-          isStaffUser={isStaffUser}
-        />
+        <>
+          <FamilyPortalView
+            activeCase={activeCase}
+            cases={cases}
+            onSelectCase={(c) => setActiveCaseId(c.id)}
+            onUpdateCase={handleUpdateCase}
+            onOpenESignModal={(doc) => {
+              setTargetESignDoc(doc || null);
+              setIsESignOpen(true);
+            }}
+            onSendNotification={handleSendNotification}
+            onOpenFamilyProofApproval={() => handleOpenProofApprovalModal(activeCase)}
+            onOpenGuidedTour={() => handleOpenGuidedTour('family')}
+            onExitPortal={() => {
+              if (isStaffUser) {
+                setCurrentRole('director');
+              } else {
+                setViewMode('public');
+                setCurrentRole('director');
+                setIsStaffUser(true);
+              }
+            }}
+            isStaffUser={isStaffUser}
+          />
+
+          {/* Interactive Guided Tour & Spotlight Tutorial Modal */}
+          <InteractiveGuidedTourModal
+            isOpen={isGuidedTourOpen}
+            onClose={() => setIsGuidedTourOpen(false)}
+            activeCase={activeCase}
+            initialTrack={guidedTourInitialTrack}
+            onLaunchToolModal={handleLaunchToolFromTour}
+          />
+        </>
       );
     }
 
@@ -622,10 +1015,12 @@ export function App() {
           currentRole={currentRole}
           onChangeRole={(role) => {
             if (role === 'manager') {
-              if (!isManagerAuthenticated) {
+              const active = getActiveManagerSession();
+              if (!active || !verifySessionToken(active, 'manager')) {
                 setIsManagerPinModalOpen(true);
                 return;
               }
+              setManagerSession(active);
               setCurrentRole('manager');
               setBackOfficeTab('manager');
               return;
@@ -635,13 +1030,25 @@ export function App() {
             }
             setCurrentRole(role);
           }}
+          onLockManagerSuite={handleLockManagerSuite}
           activeCase={activeCase}
           cases={cases}
           onSelectCase={(c) => setActiveCaseId(c.id)}
           activeTab={backOfficeTab}
-          onChangeTab={setBackOfficeTab}
+          onChangeTab={(tab) => {
+            if (tab === 'manager') {
+              const active = getActiveManagerSession();
+              if (!active || !verifySessionToken(active, 'manager')) {
+                setIsManagerPinModalOpen(true);
+                return;
+              }
+              setManagerSession(active);
+            }
+            setBackOfficeTab(tab);
+          }}
           onExitBackOffice={() => setViewMode('public')}
           onOpenNewCase={() => setIsArrangerOpen(true)}
+          onOpenFirstCallIntake={() => setIsFirstCallIntakeOpen(true)}
           onOpenNotifications={() => setIsNotificationHubOpen(true)}
           notificationCount={notifications.length}
           onOpenLiveryModal={() => setIsLiveryModalOpen(true)}
@@ -657,8 +1064,28 @@ export function App() {
             setIsContractModalOpen(true);
           }}
           onOpenPrintAP47={() => handleOpenPrintAP47Modal(activeCase)}
+          onOpenDiscrepancyGuardrail={() => handleOpenDiscrepancyModal(activeCase)}
+          onOpenDirectorDayOfServiceHUD={() => handleOpenDirectorHUDModal(activeCase)}
+          onOpenFamilyProofApproval={() => handleOpenProofApprovalModal(activeCase)}
           onAdvancePhase={handleUpdateCasePhase}
           onOpenTwoWaySmsModal={handleOpenTwoWaySmsModal}
+          onOpenDocuSignModal={() => handleOpenDocuSignModal(activeCase)}
+          onOpenCloudModal={() => setIsCloudModalOpen(true)}
+          onOpenAIModal={() => setIsAIGatewayModalOpen(true)}
+          onOpenPressModal={() => setIsPressModalOpen(true)}
+          onOpenWebcastModal={() => setIsWebcastHubModalOpen(true)}
+          onOpenStripeModal={() => setIsStripeModalOpen(true)}
+          onOpenQuickBooksModal={() => handleOpenQuickBooksModal(activeCase)}
+          onOpenQuickBooks={() => handleOpenQuickBooksModal(activeCase)}
+          onOpenCheckPrinter={() => handleOpenCheckPrinterModal(activeCase)}
+          onOpenTwilioGatewayModal={() => setIsTwilioGatewayModalOpen(true)}
+          onOpenIntegrationsCenter={() => setIsIntegrationsCenterOpen(true)}
+          onOpenSimulationModal={() => setIsSimulationModalOpen(true)}
+          onOpenGuidedTour={() => handleOpenGuidedTour('director')}
+          currentDirectorId={currentDirectorId}
+          onChangeDirectorId={setCurrentDirectorId}
+          directorProfiles={directorProfiles}
+          partnerRequests={partnerRequests}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -678,6 +1105,7 @@ export function App() {
               onOpenLiveryModal={() => setIsLiveryModalOpen(true)}
               onOpenWoodlawnModal={() => setIsWoodlawnDispatchOpen(true)}
               onOpenPartnerModal={() => setIsPartnerModalOpen(true)}
+              onOpenTwoWaySmsModal={handleOpenTwoWaySmsModal}
               onOpenRemovalModal={(targetCase) => {
                 setRemovalTargetCase(targetCase);
                 setIsRemovalModalOpen(true);
@@ -690,9 +1118,10 @@ export function App() {
               onOpenAppointmentModal={(targetCase) => handleOpenAppointmentModal(targetCase)}
               onOpenWebcastModal={(targetCase) => {
                 setWebcastTargetCase(targetCase);
-                setIsWebcastModalOpen(true);
+                setIsWebcastHubModalOpen(true);
               }}
               onOpenNewCase={() => setIsArrangerOpen(true)}
+              onOpenFirstCallIntake={() => setIsFirstCallIntakeOpen(true)}
               onOpenFamilyPortal={(caseId) => {
                 if (caseId) setActiveCaseId(caseId);
                 setCurrentRole('family');
@@ -700,6 +1129,24 @@ export function App() {
               onUpdateCasePhase={handleUpdateCasePhase}
               onSendNotification={handleSendNotification}
               currentRole={currentRole}
+              currentDirectorId={currentDirectorId}
+              onChangeDirectorId={setCurrentDirectorId}
+              directorProfiles={directorProfiles}
+              onClaimCase={handleClaimCase}
+              onOverrideDirector={handleOverrideDirector}
+              onOpenDocuSignModal={(targetCase) => handleOpenDocuSignModal(targetCase)}
+              onOpenCloudModal={() => setIsCloudModalOpen(true)}
+              onOpenAIModal={() => setIsAIGatewayModalOpen(true)}
+              onOpenPressModal={() => setIsPressModalOpen(true)}
+              onOpenStripeModal={(targetCase) => {
+                setStripeTargetCase(targetCase);
+                setIsStripeModalOpen(true);
+              }}
+              onOpenQuickBooksModal={(targetCase) => handleOpenQuickBooksModal(targetCase)}
+              onOpenDiscrepancyGuardrail={(targetCase) => handleOpenDiscrepancyModal(targetCase)}
+              onOpenDirectorDayOfServiceHUD={(targetCase) => handleOpenDirectorHUDModal(targetCase)}
+              onOpenFamilyProofApproval={(targetCase) => handleOpenProofApprovalModal(targetCase)}
+              partnerRequests={partnerRequests}
             />
           )}
 
@@ -737,6 +1184,9 @@ export function App() {
               }}
               onOpenPrintAP47={() => handleOpenPrintAP47Modal(activeCase)}
               onOpenAppointmentModal={() => handleOpenAppointmentModal(activeCase)}
+              onOpenDiscrepancyGuardrail={() => handleOpenDiscrepancyModal(activeCase)}
+              onOpenDirectorDayOfServiceHUD={() => handleOpenDirectorHUDModal(activeCase)}
+              onOpenFamilyProofApproval={() => handleOpenProofApprovalModal(activeCase)}
               onSendNotification={handleSendNotification}
               onOpenNotifications={() => setIsNotificationHubOpen(true)}
               onOpenFamilyPortal={() => setCurrentRole('family')}
@@ -749,6 +1199,7 @@ export function App() {
               onOpenLiveryModal={() => setIsLiveryModalOpen(true)}
               onOpenFinances={() => setBackOfficeTab('finances')}
               onOpenAftercare={() => setBackOfficeTab('aftercare')}
+              onOpenCheckPrinter={() => handleOpenCheckPrinterModal(activeCase)}
               partnerRequests={partnerRequests}
             />
           )}
@@ -757,6 +1208,7 @@ export function App() {
             <FacilityCalendarView
               cases={cases}
               events={calendarEvents}
+              directorProfiles={directorProfiles}
               onAddEvent={handleAddCalendarEvent}
               onSelectCase={(c) => {
                 setActiveCaseId(c.id);
@@ -826,6 +1278,7 @@ export function App() {
             <DocumentJourneyMatrix
               caseData={activeCase}
               onUpdateDocumentStatus={handleUpdateDocumentStatus}
+              onUpdateCase={handleUpdateCase}
               onOpenESign={(doc) => {
                 setTargetESignDoc(doc || null);
                 setIsESignOpen(true);
@@ -880,6 +1333,9 @@ export function App() {
                   splitBilling: updatedBilling
                 });
               }}
+              onOpenQuickBooks={(targetCase) => handleOpenQuickBooksModal(targetCase)}
+              onOpenCheckPrinter={(targetCase) => handleOpenCheckPrinterModal(targetCase)}
+              onOpenStripeModal={() => setIsStripeModalOpen(true)}
             />
           )}
 
@@ -916,6 +1372,7 @@ export function App() {
             onClose={() => setIsNotificationHubOpen(false)}
             onSendNotification={handleSendNotification}
             onSelectCase={(c) => setActiveCaseId(c.id)}
+            onOpenTwilioGateway={() => setIsTwilioGatewayModalOpen(true)}
           />
         )}
 
@@ -985,6 +1442,17 @@ export function App() {
           />
         )}
 
+        {/* Universal First Call & Intake Studio Modal */}
+        {isFirstCallIntakeOpen && (
+          <FirstCallIntakeModal
+            isOpen={isFirstCallIntakeOpen}
+            onClose={() => setIsFirstCallIntakeOpen(false)}
+            onSubmitIntake={handleCreateCaseFromIntake}
+            directorProfiles={directorProfiles}
+            currentDirectorId={currentDirectorId}
+          />
+        )}
+
         {/* First Call Removal & Legal Custody Affidavit Modal */}
         {isRemovalModalOpen && (
           <RemovalSchedulingModal
@@ -997,6 +1465,16 @@ export function App() {
             cases={cases}
             onSaveRemoval={handleSaveRemoval}
             onSendNotification={handleSendNotification}
+            onOpenAppointmentModal={(c) => {
+              setIsRemovalModalOpen(false);
+              setAppointmentTargetCase(c || removalTargetCase || activeCase);
+              setIsAppointmentModalOpen(true);
+            }}
+            onOpenContractModal={(c) => {
+              setIsRemovalModalOpen(false);
+              setContractTargetCase(c || removalTargetCase || activeCase);
+              setIsContractModalOpen(true);
+            }}
           />
         )}
 
@@ -1027,6 +1505,16 @@ export function App() {
             onSaveAppointment={handleSaveAppointment}
             onSendNotification={handleSendNotification}
             onOpenCalendar={() => setBackOfficeTab('calendar')}
+            onOpenContractModal={() => {
+              setIsAppointmentModalOpen(false);
+              setContractTargetCase(appointmentTargetCase || activeCase);
+              setIsContractModalOpen(true);
+            }}
+            onOpenRemovalModal={(c) => {
+              setIsAppointmentModalOpen(false);
+              setRemovalTargetCase(c || appointmentTargetCase || activeCase);
+              setIsRemovalModalOpen(true);
+            }}
           />
         )}
 
@@ -1036,6 +1524,7 @@ export function App() {
             isOpen={isMemorialProgramModalOpen}
             onClose={() => setIsMemorialProgramModalOpen(false)}
             caseData={activeCase}
+            onOpenFamilyProofApproval={() => handleOpenProofApprovalModal(activeCase)}
           />
         )}
 
@@ -1045,6 +1534,9 @@ export function App() {
             isOpen={isEdrsModalOpen}
             onClose={() => setIsEdrsModalOpen(false)}
             caseData={activeCase}
+            activeCase={activeCase}
+            cases={cases}
+            onSendNotification={handleSendNotification}
           />
         )}
 
@@ -1072,6 +1564,7 @@ export function App() {
             onAddRequest={handleAddPartnerRequest}
             onSendNotification={handleSendNotification}
             targetRequestId={twoWaySmsTargetRequestId}
+            onOpenTwilioGateway={() => setIsTwilioGatewayModalOpen(true)}
           />
         )}
 
@@ -1089,7 +1582,8 @@ export function App() {
           isOpen={isManagerPinModalOpen}
           onClose={() => setIsManagerPinModalOpen(false)}
           onSuccess={() => {
-            setIsManagerAuthenticated(true);
+            const token = createSignedSessionToken('manager', 'lfd-08850', 'Jason Benta (Managing LFD #08850)', 60);
+            setManagerSession(token);
             setIsManagerPinModalOpen(false);
             setCurrentRole('manager');
             setBackOfficeTab('manager');
@@ -1102,7 +1596,7 @@ export function App() {
               channel: 'sms',
               type: 'portal_update',
               title: '🔐 Manager Suite Unlocked',
-              bodyText: 'Jason Benta (Managing LFD #08850) authenticated. Full director scheduling & trade guild operations accessible.',
+              bodyText: 'Jason Benta (Managing LFD #08850) authenticated. Cryptographic RBAC session token issued (60-min window).',
               sentAt: 'Just now',
               status: 'delivered'
             });
@@ -1188,6 +1682,241 @@ export function App() {
             setPrintAP47TargetCase(null);
           }}
           caseData={printAP47TargetCase || activeCase}
+          onOpenCheckPrinter={(targetCase) => handleOpenCheckPrinterModal(targetCase)}
+        />
+
+        {/* DocuSign NYS ESRA Compliant Legal E-Signature Hub Modal */}
+        {isDocuSignModalOpen && (
+          <DocuSignEnvelopeModal
+            isOpen={isDocuSignModalOpen}
+            onClose={() => {
+              setIsDocuSignModalOpen(false);
+              setDocuSignTargetCase(null);
+            }}
+            activeCase={docuSignTargetCase || activeCase}
+            onSaveEnvelope={(env) => handleSaveDocuSign((docuSignTargetCase || activeCase).id, env)}
+            onSendNotification={handleSendNotification}
+          />
+        )}
+
+        {/* QuickBooks Online Accounting & Invoicing Integration Modal */}
+        {isQuickBooksModalOpen && (
+          <QuickBooksSyncModal
+            isOpen={isQuickBooksModalOpen}
+            onClose={() => {
+              setIsQuickBooksModalOpen(false);
+              setQuickBooksTargetCase(null);
+            }}
+            activeCase={quickBooksTargetCase || activeCase}
+            cases={cases}
+            onUpdateCase={handleUpdateCase}
+            onSaveSync={(syncData) => handleSaveQuickBooksSync((quickBooksTargetCase || activeCase).id, syncData)}
+            onSendNotification={handleSendNotification}
+          />
+        )}
+
+        {/* Pass-Through Accounts Payable Check Generator & Voucher Printer Modal */}
+        {isCheckPrinterModalOpen && (
+          <CashAdvanceCheckPrinterModal
+            isOpen={isCheckPrinterModalOpen}
+            onClose={() => {
+              setIsCheckPrinterModalOpen(false);
+              setCheckPrinterTargetCase(null);
+            }}
+            caseData={checkPrinterTargetCase || activeCase}
+            onUpdateChecks={(updatedChecks) => handleUpdatePassThroughChecks((checkPrinterTargetCase || activeCase).id, updatedChecks)}
+            onOpenQuickBooks={(targetCase: GoldenRecordCase) => handleOpenQuickBooksModal(targetCase)}
+          />
+        )}
+
+        {/* Multi-Document Discrepancy & NYS PHL § 4201 Guardrail Modal */}
+        {isDiscrepancyModalOpen && (
+          <DiscrepancyGuardrailModal
+            isOpen={isDiscrepancyModalOpen}
+            onClose={() => {
+              setIsDiscrepancyModalOpen(false);
+              setDiscrepancyTargetCase(null);
+            }}
+            caseData={discrepancyTargetCase || activeCase}
+            onUpdateCase={handleUpdateCase}
+            onOpenEdrsRapidFill={() => setIsEdrsModalOpen(true)}
+            onOpenContractModal={() => {
+              setContractTargetCase(discrepancyTargetCase || activeCase);
+              setIsContractModalOpen(true);
+            }}
+          />
+        )}
+
+        {/* Mobile Day-of-Service Director Pocket HUD & SMS Cortege Dispatch Modal */}
+        {isDirectorHUDModalOpen && (
+          <DirectorDayOfServiceHUDModal
+            isOpen={isDirectorHUDModalOpen}
+            onClose={() => {
+              setIsDirectorHUDModalOpen(false);
+              setDirectorHUDTargetCase(null);
+            }}
+            caseData={directorHUDTargetCase || activeCase}
+            onUpdateCase={handleUpdateCase}
+            onSendNotification={handleSendNotification}
+          />
+        )}
+
+        {/* Family Proof Approval & Commercial Press Lock Hub Modal */}
+        {isProofApprovalModalOpen && (
+          <FamilyProofApprovalModal
+            isOpen={isProofApprovalModalOpen}
+            onClose={() => {
+              setIsProofApprovalModalOpen(false);
+              setProofApprovalTargetCase(null);
+            }}
+            caseData={proofApprovalTargetCase || activeCase}
+            onUpdateCase={handleUpdateCase}
+            onSendNotification={handleSendNotification}
+          />
+        )}
+
+        {/* Twilio Live SMS Cellular Gateway Configuration Modal */}
+        <TwilioGatewaySettingsModal
+          isOpen={isTwilioGatewayModalOpen}
+          onClose={() => setIsTwilioGatewayModalOpen(false)}
+        />
+
+        {/* Cloud Database, S3 Object Storage & Multi-Device Real-Time Sync Modal */}
+        {isCloudModalOpen && (
+          <CloudSyncStorageModal
+            isOpen={isCloudModalOpen}
+            onClose={() => setIsCloudModalOpen(false)}
+            cases={cases}
+            onSyncComplete={() => {
+              // Trigger state refresh
+            }}
+          />
+        )}
+
+        {/* 24/7 AI Family Care Concierge, 9-Part Obituary Generator & Whisper Audio Hub */}
+        <AIGatewaySettingsModal
+          isOpen={isAIGatewayModalOpen}
+          onClose={() => setIsAIGatewayModalOpen(false)}
+          activeCase={activeCase}
+          cases={cases}
+        />
+
+        {/* Commercial Press Fulfillment & 300 DPI CMYK Offset Routing */}
+        <CommercialPressFulfillmentModal
+          isOpen={isPressModalOpen}
+          onClose={() => setIsPressModalOpen(false)}
+          cases={cases}
+          selectedCaseId={activeCase.id}
+        />
+
+        {/* Live 4K Webcasting, PTZ Multi-Camera Studio & Vimeo Enterprise Gateway Hub */}
+        <WebcastLiveStreamHubModal
+          isOpen={isWebcastHubModalOpen}
+          onClose={() => {
+            setIsWebcastHubModalOpen(false);
+            setWebcastTargetCase(null);
+          }}
+          activeCase={webcastTargetCase || activeCase}
+          cases={cases}
+          onSendNotification={handleSendNotification}
+        />
+
+        {/* Stripe Merchant POS Terminal & Split-Pay Crowdfunding Gateway */}
+        <StripePaymentGatewayModal
+          isOpen={isStripeModalOpen}
+          onClose={() => {
+            setIsStripeModalOpen(false);
+            setStripeTargetCase(null);
+          }}
+          activeCase={stripeTargetCase || activeCase}
+          cases={cases}
+          onSendNotification={handleSendNotification}
+          onUpdateCaseBilling={(caseId, updatedBilling) => {
+            setCases(prev => prev.map(c => {
+              if (c.id === caseId) {
+                return {
+                  ...c,
+                  splitBilling: updatedBilling
+                };
+              }
+              return c;
+            }));
+          }}
+        />
+
+        {/* Enterprise Integrations & API Gateway Command Center Hub */}
+        <IntegrationsCommandCenterModal
+          isOpen={isIntegrationsCenterOpen}
+          onClose={() => setIsIntegrationsCenterOpen(false)}
+          onLaunchStripe={() => {
+            setStripeTargetCase(activeCase);
+            setIsStripeModalOpen(true);
+          }}
+          onLaunchTwilio={() => setIsTwilioGatewayModalOpen(true)}
+          onLaunchCloud={() => setIsCloudModalOpen(true)}
+          onLaunchDocuSign={() => handleOpenDocuSignModal(activeCase)}
+          onLaunchQuickBooks={() => handleOpenQuickBooksModal(activeCase)}
+          onLaunchEdrs={() => setIsEdrsModalOpen(true)}
+          onLaunchWebcast={() => setIsWebcastHubModalOpen(true)}
+          onLaunchPress={() => setIsPressModalOpen(true)}
+          onLaunchAI={() => setIsAIGatewayModalOpen(true)}
+        />
+
+        {/* End-to-End Case Lifecycle Simulation Runner Modal */}
+        <CaseLifecycleSimulatorModal
+          isOpen={isSimulationModalOpen}
+          onClose={() => setIsSimulationModalOpen(false)}
+          activeCase={activeCase}
+          cases={cases}
+          onSelectCase={(c) => setActiveCaseId(c.id)}
+          onAdvancePhase={handleUpdateCasePhase}
+          onLaunchModal={(key, targetCase) => {
+            switch (key) {
+              case 'removal':
+                setRemovalTargetCase(targetCase);
+                setIsRemovalModalOpen(true);
+                break;
+              case 'contract':
+                setContractTargetCase(targetCase);
+                setIsContractModalOpen(true);
+                break;
+              case 'ai':
+                setIsAIGatewayModalOpen(true);
+                break;
+              case 'docusign':
+                handleOpenDocuSignModal(targetCase);
+                break;
+              case 'quickbooks':
+                handleOpenQuickBooksModal(targetCase);
+                break;
+              case 'stripe':
+                setStripeTargetCase(targetCase);
+                setIsStripeModalOpen(true);
+                break;
+              case 'edrs':
+                setIsEdrsModalOpen(true);
+                break;
+              case 'press':
+                setIsPressModalOpen(true);
+                break;
+              case 'webcast':
+                setIsWebcastHubModalOpen(true);
+                break;
+              case 'golden_record':
+                setActiveCaseId(targetCase.id);
+                setBackOfficeTab('golden_record');
+                break;
+            }
+          }}
+        />
+
+        {/* Interactive Guided Tour & Spotlight Tutorial Modal */}
+        <InteractiveGuidedTourModal
+          isOpen={isGuidedTourOpen}
+          onClose={() => setIsGuidedTourOpen(false)}
+          activeCase={activeCase}
+          initialTrack={guidedTourInitialTrack}
+          onLaunchToolModal={handleLaunchToolFromTour}
         />
       </div>
     );

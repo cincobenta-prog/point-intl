@@ -104,13 +104,50 @@ export interface ServiceSelections {
   specialRequests?: string;
 }
 
+export interface CommunityContribution {
+  id: string;
+  contributorName: string;
+  contributorEmail?: string;
+  contributorPhone?: string;
+  relationship?: string;
+  amount: number;
+  message?: string;
+  date: string;
+  paymentMethod: 'Apple Pay' | 'Google Pay' | 'Card' | 'ACH' | 'Cash / Check';
+  transactionId: string;
+  isAnonymous?: boolean;
+}
+
 export interface SplitBillingItem {
+  id?: string;
   payerType: 'Family ACH Direct' | 'Life Insurance Assignment' | 'Credit Card' | 'County/Grant Aid' | 'Cash / Certified Bank Check';
+  payerName?: string;
+  payerEmail?: string;
+  payerPhone?: string;
+  relationshipToDecedent?: string;
   providerName?: string;
   policyNumber?: string;
   amountAllocated: number;
+  amountPaid?: number;
   status: 'pending_verification' | 'verified_active' | 'funded' | 'processing';
+  itemAssigned?: string;
   notes?: string;
+  inviteSentAt?: string;
+  paidAt?: string;
+  transactionReference?: string;
+  receiptNumber?: string;
+  shareableToken?: string;
+}
+
+export interface FamilySplitPayConfig {
+  enabled: boolean;
+  communityContributionsEnabled: boolean;
+  communityGoalAmount?: number;
+  communityDescription?: string;
+  shareableLinkCode?: string;
+  contributions?: CommunityContribution[];
+  allowCustomAmounts?: boolean;
+  passThroughSponsorshipsEnabled?: boolean;
 }
 
 export interface AftercareScheduleItem {
@@ -186,6 +223,59 @@ export interface ObituaryPackageData {
   photos: TributePhotoItem[];
 }
 
+export interface JewelryItemSpec {
+  id: string;
+  item: string;
+  description?: string;
+  checked: boolean;
+  disposition: 'remain_on_decedent' | 'return_to_family';
+}
+
+export interface ClothingChecklistData {
+  socks: boolean;
+  socksNotes?: string;
+  pants: boolean;
+  pantsNotes?: string;
+  shirt: boolean;
+  shirtNotes?: string;
+  underwear: boolean;
+  underwearNotes?: string;
+  shoes: boolean;
+  shoesNotes?: string;
+  dress: boolean; // "deass"
+  dressNotes?: string;
+  panties: boolean; // "pantes"
+  pantiesNotes?: string;
+  wig: boolean;
+  wigNotes?: string;
+  jacket: boolean;
+  jacketNotes?: string;
+  tie: boolean;
+  tieNotes?: string;
+  pocketSquare: boolean;
+  pocketSquareNotes?: string;
+  jewelryList: JewelryItemSpec[];
+  customItems?: Array<{
+    id: string;
+    name: string;
+    checked: boolean;
+    notes?: string;
+  }>;
+  casketNumber?: string;
+  casketName?: string;
+  namePlate?: boolean;
+  hairdresserAssigned?: boolean;
+  hairdresserName?: string;
+  cosmeticsNotes?: string;
+  glassesInstruction?: 'on_for_viewing_remove_before_burial' | 'remain_on_decedent' | 'return_to_family' | 'none';
+  deliveredBy?: string;
+  deliveredByPhone?: string;
+  receivedByDirector?: string;
+  dateReceived?: string;
+  isCompleted?: boolean;
+  lastUpdated?: string;
+}
+
 export interface GoldenRecordCase {
   id: string;
   caseNumber: string;
@@ -195,6 +285,38 @@ export interface GoldenRecordCase {
   safeArrivalStatus: 'pending_removal' | 'in_transit' | 'safe_arrival_confirmed';
   safeArrivalTimestamp?: string;
   assignedDirector: string;
+  assignedDirectorId?: string;
+  caseClaimStatus?: 'unclaimed' | 'claimed' | 'reassigned';
+  appointmentScheduled?: boolean;
+  appointmentDate?: string;
+  appointmentTime?: string;
+
+  quickbooksSync?: {
+    invoiceNumber?: string;
+    syncStatus: 'not_synced' | 'synced' | 'pending';
+    lastSyncedAt?: string;
+    qboInvoiceId?: string;
+    balanceRemaining?: number;
+    totalAmount?: number;
+    billsGenerated?: Array<{
+      vendorName: string;
+      category: string;
+      amount: number;
+      billNumber: string;
+      status: 'synced' | 'pending';
+    }>;
+  };
+
+  docusignEnvelope?: {
+    envelopeId?: string;
+    status: 'not_sent' | 'sent' | 'delivered' | 'id_verified' | 'completed' | 'declined';
+    nokIdVerified: boolean;
+    idVerificationMethod?: 'Govt ID + SMS OTP' | 'Knowledge-Based (KBA)' | 'Direct eSign';
+    sentAt?: string;
+    completedAt?: string;
+    certificateUrl?: string;
+    documentsIncluded?: string[];
+  };
 
   decedent: DecedentInfo;
   informant: InformantInfo;
@@ -215,13 +337,63 @@ export interface GoldenRecordCase {
   cortegeRoute?: LiveryCortegeRoute;
   funeralAnnouncement?: FuneralAnnouncementData;
   statementOfGoods?: StatementOfGoodsData;
+  clothingSubmittal?: ClothingChecklistData;
+  familySplitPayConfig?: FamilySplitPayConfig;
+  vipItinerary?: DayOfServiceVIPItinerary;
   arrangementAppointment?: ArrangementAppointmentInfo;
+  intakePathway?: IntakePathwayType;
+  proofApproval?: FamilyProofApprovalRecord;
+  discrepancyAudit?: DiscrepancyAuditReport;
+  dayOfServiceHUD?: DayOfServiceHUDData;
+  firstCallNotes?: string;
   notes: Array<{
     id: string;
     author: string;
     timestamp: string;
     text: string;
   }>;
+}
+
+export type IntakePathwayType =
+  | 'unexpected_removal_first'
+  | 'scheduled_arrangement_first'
+  | 'imminent_hospice';
+
+export interface FirstCallIntakeFormData {
+  callerName: string;
+  callerRelationship: string;
+  callerPhone: string;
+  callerEmail: string;
+  callerAddress: string;
+  hasRightToControl: boolean;
+  
+  decedentLegalName: string;
+  gender: 'male' | 'female' | 'other';
+  dateOfBirth: string;
+  dateOfDeath: string;
+  isExpectedDeath: boolean;
+  
+  locationType: RemovalLocationType;
+  facilityName: string;
+  facilityAddress: string;
+  facilityFloorRoom: string;
+  facilityContactPhone: string;
+  morgueAttendantOrNurse: string;
+  
+  physicianName: string;
+  physicianPhone: string;
+  physicianLicenseNumber?: string;
+  
+  dispositionType: DispositionType;
+  viewingParlor: 'Parlor A (Seats 120)' | 'Parlor B (Seats 110)' | 'Church / External Venue' | 'Direct / No Viewing';
+  targetServiceDate?: string;
+  
+  assignedDirectorId: string;
+  assignedDirectorName: string;
+  intakePathway: IntakePathwayType;
+  urgency: RemovalUrgency;
+  specialInstructions?: string;
+  specialEquipment: string[];
 }
 
 export type BackOfficeTab =
@@ -273,6 +445,7 @@ export interface RoomScheduleEvent {
   endTime: string; // HH:MM
   serviceType: 'Memorial Service' | 'Viewing / Wake' | 'Family Visitation' | 'Arrangement Conference' | 'Preparation / Restorative' | 'Pre-Need Consultation' | 'Repast Gathering';
   assignedDirector: string;
+  assignedDirectorId?: string;
   officiantName?: string;
   organistOrMusic?: string;
   livestreamActive?: boolean;
@@ -389,6 +562,7 @@ export type PartnerRequestStatus =
   | 'sms_sent'
   | 'reminder_1_sent'
   | 'reminder_2_sent'
+  | 'overdue_unconfirmed'
   | 'confirmed'
   | 'declined'
   | 'completed';
@@ -421,6 +595,20 @@ export interface PartnerScheduleRequest {
   vendorNotes?: string;
   adjustedArrivalTime?: string;
   declineReason?: string;
+  
+  // SLA & Director Follow-Up Escalation Fields
+  responseDeadline?: string; // e.g. "Today 2:00 PM" or "2026-09-18 14:00"
+  isOverdue?: boolean;
+  overdueMinutes?: number;
+  urgencyLevel?: 'normal' | 'urgent' | 'critical';
+  directorFollowUpRequired?: boolean;
+  directorFollowUpNotes?: string;
+  directorCalledAt?: string;
+  standbyBackupPartnerId?: string;
+  standbyBackupPartnerName?: string;
+  standbyBackupPartnerPhone?: string;
+  standbyBackupRoleTitle?: string;
+  escalationStatus?: 'normal' | 'overdue_director_alert' | 'escalated_to_director' | 'backup_cascaded' | 'director_phone_confirmed';
 }
 
 export interface VendorSmsThreadMessage {
@@ -508,7 +696,8 @@ export type FlightChecklistActionType =
   | 'open_livery'
   | 'open_partner_sms'
   | 'open_finances'
-  | 'open_aftercare';
+  | 'open_aftercare'
+  | 'open_cash_advance_checks';
 
 export interface CaseFlightChecklistItem {
   id: string;
@@ -743,6 +932,48 @@ export interface LiveryCortegeRoute {
   serviceDateTime: string; // e.g. "2026-09-24 11:00 AM"
   cutoffHours: number; // 10
   isLockedBy10HourRule?: boolean;
+}
+
+export interface ServiceMilestoneItem {
+  id: string;
+  timeLabel: string;
+  title: string;
+  category: 'pickup' | 'viewing' | 'service' | 'motorcade' | 'committal' | 'repast' | 'custom';
+  venueName: string;
+  address: string;
+  gpsCoordinates?: { lat: number; lng: number };
+  directionsUrl?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  specialInstructions?: string;
+  status: 'upcoming' | 'in_progress' | 'completed';
+  badgeLabel?: string;
+  iconName?: string;
+  keyDetails?: Array<{ label: string; value: string }>;
+}
+
+export interface DayOfServiceVIPItinerary {
+  caseId: string;
+  caseNumber: string;
+  decedentName: string;
+  serviceDate: string;
+  directorName: string;
+  directorPhone: string;
+  directorEmail?: string;
+  directorLicense?: string;
+  limousineLeadChauffeur?: string;
+  limousinePhone?: string;
+  limousinePlate?: string;
+  pallbearers?: Array<{ name: string; type: 'active' | 'honorary'; role?: string }>;
+  milestones: ServiceMilestoneItem[];
+  cortegeInstructions: string[];
+  repastInfo?: {
+    venue: string;
+    address: string;
+    time: string;
+    notes?: string;
+  };
+  shareableToken?: string;
 }
 
 export type AnnouncementTheme = 
@@ -1047,17 +1278,67 @@ export interface StatementOfGoodsSectionIV {
   termsLateChargePercent: number;
 }
 
+export type CashAdvanceCategory =
+  | 'cemetery_interment'
+  | 'crematory_fee'
+  | 'clergy_officiant'
+  | 'death_certificates'
+  | 'organist_musician'
+  | 'evital_edrs_filing'
+  | 'livery_tolls'
+  | 'newspaper_obituary'
+  | 'pallbearer_gratuity'
+  | 'custom_advance';
+
+export type CheckDisbursementStatus =
+  | 'draft_queued'
+  | 'check_printed'
+  | 'hand_delivered_at_service'
+  | 'mailed_to_vendor'
+  | 'reconciled_cleared';
+
+export interface PassThroughPayableCheck {
+  id: string;
+  checkNumber: string; // e.g. "CHK-10482"
+  caseId: string;
+  caseNumber: string; // e.g. "BFH-2026-089"
+  decedentName: string; // e.g. "Dr. Marcus Aurelius Vance"
+  serviceDate: string; // e.g. "2026-09-24"
+  category: CashAdvanceCategory;
+  categoryLabel: string; // e.g. "Cemetery Interment & Vault Opening"
+  payeeName: string; // e.g. "The Woodlawn Cemetery & Crematory"
+  payeeAddress?: string; // e.g. "4199 Webster Ave, Bronx, NY 10470"
+  amount: number; // e.g. 1850.00
+  amountInWords?: string; // e.g. "ONE THOUSAND EIGHT HUNDRED FIFTY AND 00/100 DOLLARS"
+  memo: string; // e.g. "Interment: Dr. Marcus Aurelius Vance • Case #BFH-2026-089 • Svc Date: 09/24/2026"
+  dateOfService: string;
+  status: CheckDisbursementStatus;
+  bankAccount: string; // e.g. "JPMorgan Chase Operating Pass-Through (**4892)"
+  micrEncoding?: string; // e.g. "⑆021000021⑆ 9823489204⑈ 010482"
+  signedByDirector: string; // e.g. "Jason Benta, LFD #08850"
+  generatedAt: string;
+  printedAt?: string;
+  deliveredByDirector?: string;
+  deliveredToRecipient?: string;
+  clearedAt?: string;
+  qboBillPaymentId?: string;
+  notes?: string;
+}
+
 export interface StatementOfGoodsData {
   id: string;
   caseId: string;
   invoiceNumber: string;
   agreementDate: string;
   serviceType: ServiceTypeAP47;
+  purchaserName?: string;
+  decedentName?: string;
   lovedOneBiography: LovedOneBiographyInterview;
   sectionI: StatementOfGoodsSectionI;
   sectionII: StatementOfGoodsSectionII;
   sectionIII: StatementOfGoodsSectionIII;
   sectionIV: StatementOfGoodsSectionIV;
+  cashAdvanceChecks?: PassThroughPayableCheck[];
 }
 
 // ==========================================
@@ -1068,11 +1349,21 @@ export type DirectorType = 'in_house' | 'outsourced';
 
 export type DirectorAvailabilityStatus = 'available' | 'on_service' | 'scheduled_off' | 'near_overtime';
 
+export interface DirectorColorTheme {
+  name: string;
+  primary: string;
+  badgeBg: string;
+  calendarBg: string;
+  border: string;
+  text: string;
+}
+
 export interface DirectorProfile {
   id: string;
   name: string;
   licenseNumber: string; // NYS LFD #
   type: DirectorType;
+  roleType: 'manager' | 'funeral_director';
   title: string;
   phone: string;
   email: string;
@@ -1080,6 +1371,7 @@ export interface DirectorProfile {
   specialties: string[];
   rating: number;
   status: DirectorAvailabilityStatus;
+  colorTheme: DirectorColorTheme;
   
   // In-House Staff Specifics
   weeklyHoursLogged?: number;
@@ -1094,6 +1386,9 @@ export interface DirectorProfile {
   ytdServicesCompleted?: number;
   ytdEarnings?: number;
   punctualityScore?: number; // percentage e.g. 99.4%
+  
+  // Manager & Security Authentication
+  securityPin?: string; // 4-digit PIN for manager / director authorization (e.g. "3995")
 }
 
 export type ServiceAssignmentStatus = 'unassigned' | 'dispatched' | 'confirmed' | 'in_progress' | 'completed' | 'declined';
@@ -1155,3 +1450,125 @@ export interface Director1099Voucher {
   approvedAt?: string;
   notes?: string;
 }
+
+// -------------------------------------------------------------
+// 1. MULTI-DOCUMENT DISCREPANCY & NYS PHL § 4201 GUARDRAIL
+// -------------------------------------------------------------
+
+export type DiscrepancySeverity = 'critical' | 'warning' | 'info' | 'verified';
+
+export interface DiscrepancyItem {
+  id: string;
+  category: 'decedent_name' | 'dates_of_death' | 'phl_4201_kinship' | 'ap47_purchaser' | 'edrs_vitals' | 'cemetery_deed';
+  title: string;
+  description: string;
+  severity: DiscrepancySeverity;
+  goldenRecordValue: string;
+  conflictingDocumentName: string;
+  conflictingValue: string;
+  statutoryImpact: string;
+  suggestedFix: string;
+  status: 'active_mismatch' | 'rectified_synced' | 'director_exception_approved';
+  rectifiedAt?: string;
+  exceptionNote?: string;
+}
+
+export interface DiscrepancyAuditReport {
+  alignmentScore: number; // 0 to 100 percentage
+  totalChecks: number;
+  discrepanciesFound: number;
+  lastAuditedAt: string;
+  auditedBy: string;
+  items: DiscrepancyItem[];
+  phl4201Validated: boolean;
+  phl4201PriorityTier: number; // 1 (Designee), 2 (Spouse), 3 (Domestic Partner), 4 (Adult Children), etc.
+  phl4201PriorityTitle: string;
+  hasCemeteryDeedConflict: boolean;
+  hasEdrsVitalsConflict: boolean;
+}
+
+// -------------------------------------------------------------
+// 2. DAY-OF-SERVICE DIRECTOR POCKET HUD & CORTEGE RUN-SHEET
+// -------------------------------------------------------------
+
+export type CortegeVehicleRole = 
+  | 'lead_car'
+  | 'flower_car'
+  | 'hearse_coach'
+  | 'family_limo_1'
+  | 'family_limo_2'
+  | 'family_limo_3'
+  | 'pallbearer_van'
+  | 'police_escort';
+
+export interface CortegeDriverDispatchItem {
+  id: string;
+  vehicleNumber: string;
+  role: CortegeVehicleRole;
+  roleLabel: string;
+  driverName: string;
+  driverPhone: string;
+  vehicleModel: string;
+  plateNumber: string;
+  assignedPassengers: string[];
+  capacity: number;
+  status: 'standby' | 'arrived_st_nicholas' | 'family_seated' | 'rolling_in_cortege' | 'arrived_at_cemetery';
+  smsDispatchedAt?: string;
+  smsDelivered?: boolean;
+  turnByTurnUrl: string;
+  specialInstructions?: string;
+}
+
+export interface DayOfServiceReadinessItem {
+  id: string;
+  category: 'clergy_music' | 'floral_sanctuary' | 'pallbearers' | 'media_webcast' | 'cemetery_gate';
+  title: string;
+  assignedTo: string;
+  status: 'pending' | 'in_progress' | 'confirmed_ready';
+  confirmedAt?: string;
+  notes?: string;
+}
+
+export interface DayOfServiceHUDData {
+  serviceDate: string;
+  callTime: string;
+  serviceStartTime: string;
+  committalDepartureTime: string;
+  currentPhaseIndex: number;
+  leadDirectorName: string;
+  leadDirectorPhone: string;
+  chapelCueUrl: string;
+  drivers: CortegeDriverDispatchItem[];
+  readinessChecklist: DayOfServiceReadinessItem[];
+  allDriversSmsDispatched: boolean;
+  lastDriverSmsBroadcastAt?: string;
+}
+
+// -------------------------------------------------------------
+// 3. FAMILY PROOF APPROVAL & PRINT-LOCK PROTOCOL
+// -------------------------------------------------------------
+
+export interface FamilyProofApprovalRecord {
+  status: 'draft_in_review' | 'submitted_to_family' | 'family_approved_locked' | 'reopened_for_correction';
+  programApproved: boolean;
+  keepsakeBookApproved: boolean;
+  spellingsVerified: boolean;
+  photosApproved: boolean;
+  legalPrintLockAcknowledged: boolean;
+  signatoryFullName: string;
+  signatoryRelationship: string;
+  signatoryEmail: string;
+  signedAt?: string;
+  signatureDataUrl?: string;
+  ipAddressHash?: string;
+  lockedByDirector?: string;
+  lockedAt?: string;
+  pressVendorDispatched?: boolean;
+  pressVendorDispatchedAt?: string;
+  pressOrderQuantity: {
+    memorialPrograms: number;
+    keepsakeVolumes: number;
+  };
+  pressJobTicketNumber?: string;
+}
+

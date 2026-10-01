@@ -10,6 +10,7 @@ import {
 } from '../../lib/types/funeral';
 import { 
   ShieldCheck, 
+  ShieldAlert,
   Send, 
   CheckCircle, 
   User, 
@@ -30,11 +31,15 @@ import {
   Users,
   Calendar,
   CalendarCheck,
-  Printer
+  Printer,
+  Compass,
+  BookOpen
 } from 'lucide-react';
 import { WebcastSchedulingModal } from './WebcastSchedulingModal';
 import { CaseFlightChecklist } from './CaseFlightChecklist';
+import { DayOfServiceVIPItineraryModal } from '../family/DayOfServiceVIPItineraryModal';
 import { INITIAL_SERVICE_PARTNERS, getInitialFlightChecklist } from '../../lib/data/mockCases';
+import { generateDiscrepancyAudit } from '../../lib/data/discrepancyAuditHelper';
 
 interface GoldenRecordDetailProps {
   caseData: GoldenRecordCase;
@@ -47,6 +52,9 @@ interface GoldenRecordDetailProps {
   onOpenContractModal?: () => void;
   onOpenPrintAP47?: () => void;
   onOpenAppointmentModal?: () => void;
+  onOpenDiscrepancyGuardrail?: () => void;
+  onOpenDirectorDayOfServiceHUD?: () => void;
+  onOpenFamilyProofApproval?: () => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
   onOpenNotifications?: () => void;
   onOpenFamilyPortal?: () => void;
@@ -59,6 +67,7 @@ interface GoldenRecordDetailProps {
   onOpenLiveryModal?: () => void;
   onOpenFinances?: () => void;
   onOpenAftercare?: () => void;
+  onOpenCheckPrinter?: () => void;
   partnerRequests?: PartnerScheduleRequest[];
 }
 
@@ -73,6 +82,9 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
   onOpenContractModal,
   onOpenPrintAP47,
   onOpenAppointmentModal,
+  onOpenDiscrepancyGuardrail,
+  onOpenDirectorDayOfServiceHUD,
+  onOpenFamilyProofApproval,
   onSendNotification,
   onOpenNotifications,
   onOpenFamilyPortal,
@@ -85,6 +97,7 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
   onOpenLiveryModal,
   onOpenFinances,
   onOpenAftercare,
+  onOpenCheckPrinter,
   partnerRequests = []
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'vitals' | 'informant' | 'services' | 'notes'>('overview');
@@ -93,6 +106,7 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
   const [previewEmailModalOpen, setPreviewEmailModalOpen] = useState(false);
   const [previewSMSModalOpen, setPreviewSMSModalOpen] = useState(false);
   const [isWebcastModalOpen, setIsWebcastModalOpen] = useState(false);
+  const [isVIPItineraryModalOpen, setIsVIPItineraryModalOpen] = useState(false);
   const [copiedAlert, setCopiedAlert] = useState<string | null>(null);
   const [checklistProgress, setChecklistProgress] = useState<CaseFlightPhaseProgress[]>(() => getInitialFlightChecklist(caseData));
 
@@ -113,6 +127,9 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
         break;
       case 'open_print_ap47':
         onOpenPrintAP47 ? onOpenPrintAP47() : onOpenContractModal?.();
+        break;
+      case 'open_cash_advance_checks':
+        onOpenCheckPrinter?.();
         break;
       case 'open_calendar':
         onOpenCalendar?.();
@@ -326,6 +343,77 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
         onToggleItemCompletion={handleToggleChecklistItem}
       />
 
+      {/* 2. ZERO-SLIPPAGE MULTI-DOCUMENT DISCREPANCY & STATUTORY ALIGNMENT BANNER */}
+      {(() => {
+        const audit = caseData.discrepancyAudit || generateDiscrepancyAudit(caseData);
+        const hasMismatches = audit.discrepanciesFound > 0;
+        const isCritical = audit.items.some(i => i.severity === 'critical' && i.status === 'active_mismatch');
+
+        return (
+          <div className={`p-4 sm:p-5 rounded-2xl border transition shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+            isCritical
+              ? 'bg-red-50/90 border-red-300 ring-2 ring-red-500/20'
+              : hasMismatches
+                ? 'bg-amber-50/90 border-amber-300 ring-2 ring-amber-500/20'
+                : 'bg-emerald-50/90 border-emerald-300'
+          }`}>
+            <div className="flex items-center space-x-3.5">
+              <div className={`p-2.5 rounded-2xl border shrink-0 ${
+                isCritical
+                  ? 'bg-red-600 text-white border-red-400 animate-pulse'
+                  : hasMismatches
+                    ? 'bg-amber-500 text-neutral-950 border-amber-300'
+                    : 'bg-emerald-600 text-white border-emerald-400'
+              }`}>
+                {isCritical ? <ShieldAlert className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+              </div>
+
+              <div>
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                    isCritical
+                      ? 'bg-red-200 text-red-900'
+                      : hasMismatches
+                        ? 'bg-amber-200 text-amber-900'
+                        : 'bg-emerald-200 text-emerald-900'
+                  }`}>
+                    {audit.alignmentScore}% Golden Alignment • NYS PHL § 4201 Tier {audit.phl4201PriorityTier}
+                  </span>
+                  <span className="font-serif-title font-bold text-xs text-neutral-900">
+                    {hasMismatches
+                      ? `⚠️ ${audit.discrepanciesFound} Cross-Document Discrepanc${audit.discrepanciesFound > 1 ? 'ies' : 'y'} Detected`
+                      : '✓ Zero Slippage: All Documents & Permits in 100% Statutory Alignment'}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-600 font-light mt-0.5">
+                  {hasMismatches
+                    ? `Cross-check identified potential conflicts across EDRS, AP-47, or Cemetery records. Action required before filing.`
+                    : `Vitals, next-of-kin signatures, Form AP-47, and Woodlawn permits verified against state health regulations.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              {onOpenDiscrepancyGuardrail && (
+                <button
+                  onClick={onOpenDiscrepancyGuardrail}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm ${
+                    isCritical
+                      ? 'bg-red-700 hover:bg-red-800 text-white'
+                      : hasMismatches
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'bg-white hover:bg-neutral-100 text-emerald-900 border border-emerald-300'
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>{hasMismatches ? 'Review & Rectify Conflicts' : 'Inspect Compliance Tree'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Golden Record Architecture Banner: Clean White & Crimson */}
       <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -354,6 +442,42 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
             >
               <Send className="w-3.5 h-3.5" />
               <span>Log Safe Arrival at BFH</span>
+            </button>
+          )}
+
+          {/* 1. Discrepancy Guardrail Button */}
+          {onOpenDiscrepancyGuardrail && (
+            <button
+              onClick={onOpenDiscrepancyGuardrail}
+              className="bg-red-950/10 hover:bg-red-950/20 text-[#991b1b] border border-red-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow-2xs"
+              title="Open Zero-Slippage Multi-Document Discrepancy & NYS PHL § 4201 Guardrail"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-[#991b1b]" />
+              <span>🛡️ Discrepancy Guardrail</span>
+            </button>
+          )}
+
+          {/* 2. Director Day-of-Service HUD Button */}
+          {onOpenDirectorDayOfServiceHUD && (
+            <button
+              onClick={onOpenDirectorDayOfServiceHUD}
+              className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-950 border border-amber-400 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow-2xs"
+              title="Open Mobile Day-of-Service Director Pocket HUD & 1-Click SMS Cortege Dispatch"
+            >
+              <Compass className="w-3.5 h-3.5 text-amber-700" />
+              <span>📱 Director Day-of-Service HUD</span>
+            </button>
+          )}
+
+          {/* 3. Family Proof Approval & Press Lock Button */}
+          {onOpenFamilyProofApproval && (
+            <button
+              onClick={onOpenFamilyProofApproval}
+              className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow-2xs"
+              title="Open Family Proof Approval & Commercial Press Lock Hub"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-purple-700" />
+              <span>🖨️ Family Proof & Press Lock</span>
             </button>
           )}
 
@@ -408,6 +532,26 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
               <span>🖨️ Print Form AP-47</span>
             </button>
           )}
+
+          {onOpenCheckPrinter && (
+            <button
+              onClick={onOpenCheckPrinter}
+              className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow-xs"
+              title="Print 3-Part Pass-Through Cash Advance Checks (10 NYCRR § 77.8)"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-700" />
+              <span>💵 Cash Advance Checks</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setIsVIPItineraryModalOpen(true)}
+            className="bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow-xs"
+            title="Open Day-of-Service Mobile VIP Family Itinerary & GPS Dispatch"
+          >
+            <Compass className="w-3.5 h-3.5 text-amber-700" />
+            <span>📱 VIP Itinerary & GPS</span>
+          </button>
 
           {onOpenMemorialProgramModal && (
             <button
@@ -513,6 +657,66 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
           {activeTab === 'overview' && (
             <div className="space-y-6">
               
+              {/* BI-DIRECTIONAL FIRST CALL & LOGISTICS BRIDGE PANEL */}
+              <div className="bg-gradient-to-r from-neutral-900 via-neutral-950 to-[#991b1b] text-white p-5 rounded-2xl shadow-md border border-amber-400/30 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2.5 py-1 rounded-lg">
+                      Bi-Directional Case Bridge
+                    </span>
+                    <span className="text-xs text-neutral-300 font-semibold">
+                      Pathway: {caseData.intakePathway === 'unexpected_removal_first' ? '🚨 Unexpected Death (Removal First)' : caseData.intakePathway === 'scheduled_arrangement_first' ? '📅 Advance Arrangement First' : '⚖️ Standard First Call'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {onOpenRemovalModal && (
+                      <button
+                        onClick={onOpenRemovalModal}
+                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Truck className="w-3.5 h-3.5 text-blue-200" />
+                        <span>{caseData.safeArrivalStatus === 'safe_arrival_confirmed' ? '✓ Removal Completed' : '🚑 Dispatch Removal'}</span>
+                      </button>
+                    )}
+
+                    {onOpenAppointmentModal && (
+                      <button
+                        onClick={onOpenAppointmentModal}
+                        className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-amber-200" />
+                        <span>{caseData.arrangementAppointment?.status === 'confirmed' ? `📅 Conference: ${caseData.arrangementAppointment.confirmedSlot?.date}` : '📅 Schedule Conference'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1 border-t border-white/10">
+                  <div className="bg-white/10 p-2.5 rounded-xl">
+                    <span className="text-neutral-400 text-[10px] uppercase font-bold block">First Call Custody Location</span>
+                    <strong className="text-white text-xs block truncate">{caseData.removalSchedule?.facilityName || caseData.decedent.facilityName || caseData.decedent.placeOfDeath}</strong>
+                    <span className="text-neutral-300 text-[11px] block truncate">{caseData.removalSchedule?.facilityFloorRoom || 'Floor / Bay Noted'}</span>
+                  </div>
+
+                  <div className="bg-white/10 p-2.5 rounded-xl">
+                    <span className="text-neutral-400 text-[10px] uppercase font-bold block">Attending Physician (EDRS)</span>
+                    <strong className="text-white text-xs block truncate">{caseData.medicalCertifier.physicianName}</strong>
+                    <span className="text-neutral-300 text-[11px] block">{caseData.medicalCertifier.phone}</span>
+                  </div>
+
+                  <div className="bg-white/10 p-2.5 rounded-xl">
+                    <span className="text-neutral-400 text-[10px] uppercase font-bold block">Family Arrangement Status</span>
+                    <strong className="text-amber-300 text-xs block truncate">
+                      {caseData.arrangementAppointment?.status === 'confirmed' 
+                        ? `Confirmed: ${caseData.arrangementAppointment.confirmedSlot?.date} (${caseData.arrangementAppointment.confirmedSlot?.time})`
+                        : 'Candidate Timeslots Offered'}
+                    </strong>
+                    <span className="text-neutral-300 text-[11px] block truncate">{caseData.arrangementAppointment?.locationVenue || '630 St. Nicholas Ave'}</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Decedent Summary Card */}
               <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
                 <h3 className="font-serif-title text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
@@ -1694,6 +1898,17 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
               });
             }
           }}
+        />
+      )}
+
+      {/* Day-of-Service Mobile VIP Family Itinerary & GPS Dispatch Modal */}
+      {isVIPItineraryModalOpen && (
+        <DayOfServiceVIPItineraryModal
+          isOpen={isVIPItineraryModalOpen}
+          onClose={() => setIsVIPItineraryModalOpen(false)}
+          caseData={caseData}
+          onUpdateCase={onUpdateCase}
+          isStaffMode={true}
         />
       )}
 

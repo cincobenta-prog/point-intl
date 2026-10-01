@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { GoldenRecordCase, SimulatedNotification, NotificationType } from '../../lib/types/funeral';
 import { 
+  getTwilioConfig, 
+  saveTwilioConfig,
+  sendTwilioSms,
+  TwilioGatewayConfig
+} from '../../lib/services/twilioService';
+import { 
   Smartphone, 
   Send, 
   CheckCheck, 
@@ -13,11 +19,15 @@ import {
   HeartHandshake, 
   Truck, 
   Calendar, 
-  CreditCard,
-  Terminal,
-  RefreshCw,
-  ExternalLink,
-  MessageSquare
+  CreditCard, 
+  Terminal, 
+  RefreshCw, 
+  ExternalLink, 
+  MessageSquare,
+  Key,
+  CheckCircle2,
+  AlertTriangle,
+  Server
 } from 'lucide-react';
 
 interface LiveNotificationSimulatorModalProps {
@@ -27,6 +37,7 @@ interface LiveNotificationSimulatorModalProps {
   onClose: () => void;
   onSendNotification: (notification: SimulatedNotification) => void;
   onSelectCase: (caseItem: GoldenRecordCase) => void;
+  onOpenTwilioGateway?: () => void;
 }
 
 export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorModalProps> = ({
@@ -35,10 +46,11 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
   notifications,
   onClose,
   onSendNotification,
-  onSelectCase
+  onSelectCase,
+  onOpenTwilioGateway: _onOpenTwilioGateway
 }) => {
   const [selectedCaseId, setSelectedCaseId] = useState<string>(activeCase.id);
-  const [activeTab, setActiveTab] = useState<'quick_triggers' | 'composer' | 'audit_log'>('quick_triggers');
+  const [activeTab, setActiveTab] = useState<'quick_triggers' | 'composer' | 'audit_log' | 'gateway_settings'>('quick_triggers');
   const [deviceSkin, setDeviceSkin] = useState<'ios' | 'android'>('ios');
   
   // Custom composer state
@@ -50,6 +62,94 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
   const [customActionBtnText, setCustomActionBtnText] = useState('Open Family Portal');
   const [isSending, setIsSending] = useState(false);
   const [sendSuccessToast, setSendSuccessToast] = useState<string | null>(null);
+  
+  // Twilio Gateway inline settings state
+  const [twilioConfig, setTwilioConfig] = useState<TwilioGatewayConfig>(() => getTwilioConfig());
+  const [gatewaySid, setGatewaySid] = useState(twilioConfig.accountSid || '');
+  const [gatewayAuthToken, setGatewayAuthToken] = useState(twilioConfig.authToken || '');
+  const [gatewayFromNumber, setGatewayFromNumber] = useState(twilioConfig.fromPhoneNumber || '+12122818850');
+  const [gatewayTestPhone, setGatewayTestPhone] = useState('(917) 807-3995');
+  const [isGatewayTesting, setIsGatewayTesting] = useState(false);
+  const [gatewayTestFeedback, setGatewayTestFeedback] = useState<{ success: boolean; message: string; sid?: string } | null>(null);
+  const [gatewaySavedToast, setGatewaySavedToast] = useState(false);
+
+  React.useEffect(() => {
+    const current = getTwilioConfig();
+    setTwilioConfig(current);
+    setGatewaySid(current.accountSid || '');
+    setGatewayAuthToken(current.authToken || '');
+    setGatewayFromNumber(current.fromPhoneNumber || '+12122818850');
+  }, []);
+
+  const handleSaveInlineGateway = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const updated: TwilioGatewayConfig = {
+      ...twilioConfig,
+      accountSid: gatewaySid.trim(),
+      authToken: gatewayAuthToken.trim(),
+      fromPhoneNumber: gatewayFromNumber.trim(),
+      isLiveActive: Boolean(gatewaySid.trim() && gatewayAuthToken.trim())
+    };
+    saveTwilioConfig(updated);
+    setTwilioConfig(updated);
+    setGatewaySavedToast(true);
+    setTimeout(() => setGatewaySavedToast(false), 3500);
+  };
+
+  const handleInlineTestSms = async () => {
+    if (!gatewaySid.trim() || !gatewayAuthToken.trim()) {
+      setGatewayTestFeedback({
+        success: false,
+        message: 'Please enter your Twilio Account SID and Auth Token / Secret above first.'
+      });
+      return;
+    }
+    if (!gatewayTestPhone.trim()) {
+      setGatewayTestFeedback({
+        success: false,
+        message: 'Please enter a valid mobile number for the test.'
+      });
+      return;
+    }
+
+    setIsGatewayTesting(true);
+    setGatewayTestFeedback(null);
+
+    // Save temporary config
+    saveTwilioConfig({
+      ...twilioConfig,
+      accountSid: gatewaySid.trim(),
+      authToken: gatewayAuthToken.trim(),
+      fromPhoneNumber: gatewayFromNumber.trim(),
+      isLiveActive: true
+    });
+
+    const testMsg = `🕊️ BENTA'S FUNERAL HOME: Live Twilio SMS Gateway Test successful! Real carrier connection established. (Harlem, NYC • Est. 1928)`;
+    const res = await sendTwilioSms(gatewayTestPhone, testMsg, gatewayFromNumber.trim());
+    setIsGatewayTesting(false);
+
+    if (res.success && !res.isSimulated) {
+      setGatewayTestFeedback({
+        success: true,
+        message: `Cellular SMS delivered successfully! Twilio Message SID: ${res.messageSid}`,
+        sid: res.messageSid
+      });
+      const updated = { ...twilioConfig, lastTestedAt: 'Just now', testStatus: 'success' as const };
+      setTwilioConfig(updated);
+      saveTwilioConfig(updated);
+    } else if (res.success && res.isSimulated) {
+      setGatewayTestFeedback({
+        success: true,
+        message: 'Dispatched in Simulation Mode. Enter real Account SID + Auth Token to broadcast over real cellular carriers.',
+        sid: res.messageSid
+      });
+    } else {
+      setGatewayTestFeedback({
+        success: false,
+        message: res.error || 'Failed to dispatch test SMS. Check Twilio credentials and phone number format.'
+      });
+    }
+  };
 
   const currentCase = cases.find(c => c.id === selectedCaseId) || activeCase;
 
@@ -57,7 +157,7 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
   const caseNotifications = notifications.filter(n => n.caseId === currentCase.id);
 
   // Quick Preset Dispatch Handler
-  const handleDispatchPreset = (type: NotificationType) => {
+  const handleDispatchPreset = async (type: NotificationType) => {
     setIsSending(true);
     let title = '';
     let body = '';
@@ -120,6 +220,10 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
         actionUrl = '#portal';
     }
 
+    // Call real Twilio SMS client if credentials provided
+    const twilioResult = await sendTwilioSms(currentCase.informant.phone, body);
+    const sid = twilioResult.messageSid || `SM${Math.random().toString(36).substring(2, 12)}${Date.now().toString(36)}`;
+
     const newNotif: SimulatedNotification = {
       id: `notif-${Date.now()}`,
       caseId: currentCase.id,
@@ -136,9 +240,9 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
       actionUrl: actionUrl,
       actionButtonText: actionText,
       metadata: {
-        carrier: 'Verizon Wireless (NYC 5G)',
+        carrier: twilioResult.isSimulated ? 'Verizon Wireless (NYC 5G Simulation)' : 'Twilio Cellular Carrier Gateway (Live)',
         deliveryLatencyMs: Math.floor(Math.random() * 120) + 110,
-        twilioMessageSid: `SM${Math.random().toString(36).substring(2, 12)}${Date.now().toString(36)}`,
+        twilioMessageSid: sid,
         readReceiptTimestamp: `Today ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
       }
     };
@@ -152,11 +256,15 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
   };
 
   // Custom Message Dispatch Handler
-  const handleSendCustomSMS = (e: React.FormEvent) => {
+  const handleSendCustomSMS = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customBody.trim()) return;
 
     setIsSending(true);
+
+    const twilioResult = await sendTwilioSms(currentCase.informant.phone, customBody);
+    const sid = twilioResult.messageSid || `SM${Math.random().toString(36).substring(2, 12)}${Date.now().toString(36)}`;
+
     const newNotif: SimulatedNotification = {
       id: `notif-${Date.now()}`,
       caseId: currentCase.id,
@@ -173,9 +281,9 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
       actionUrl: '#portal',
       actionButtonText: customActionBtnText,
       metadata: {
-        carrier: 'T-Mobile US (Harlem Node)',
+        carrier: twilioResult.isSimulated ? 'T-Mobile US (Harlem Simulation)' : 'Twilio Cellular Gateway (Live Direct)',
         deliveryLatencyMs: 145,
-        twilioMessageSid: `SM${Math.random().toString(36).substring(2, 12)}${Date.now().toString(36)}`,
+        twilioMessageSid: sid,
         readReceiptTimestamp: `Today ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
       }
     };
@@ -203,14 +311,27 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h3 className="font-serif-title font-bold text-xl text-neutral-900">
                   Live Family SMS & Notification Dispatch Hub
                 </h3>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                  <Radio className="w-3 h-3 text-emerald-600 animate-pulse" />
-                  Twilio 5G Gateway Active
-                </span>
+                <button
+                  onClick={() => setActiveTab('gateway_settings')}
+                  title="Click to configure Twilio API keys, phone number, and test real SMS delivery"
+                  className={`px-3 py-1 text-[11px] font-bold rounded-full border flex items-center gap-1.5 transition-all cursor-pointer shadow-xs hover:scale-[1.02] ${
+                    twilioConfig.isLiveActive
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-400'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-400'
+                  }`}
+                >
+                  <Radio className={`w-3.5 h-3.5 ${twilioConfig.isLiveActive ? 'text-emerald-600 animate-pulse' : 'text-amber-600'}`} />
+                  <span>{twilioConfig.isLiveActive ? 'Twilio 5G Gateway Active' : 'Twilio Gateway Inactive'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ml-0.5 ${
+                    twilioConfig.isLiveActive ? 'bg-emerald-200/60 text-emerald-900 border-emerald-300' : 'bg-amber-200/60 text-amber-900 border-amber-300'
+                  }`}>
+                    ⚙️ Configure Keys & Number
+                  </span>
+                </button>
               </div>
               <p className="text-xs text-neutral-500 font-light">
                 Real-time interactive mobile preview of SMS text dispatches and digital touchpoints sent to Next of Kin.
@@ -243,8 +364,21 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
             </div>
 
             <button
+              onClick={() => setActiveTab('gateway_settings')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0 ${
+                activeTab === 'gateway_settings'
+                  ? 'bg-[#7f1d1d] text-white ring-2 ring-amber-400'
+                  : 'bg-[#991b1b] hover:bg-[#7f1d1d] text-white'
+              }`}
+              title="Open Twilio Live SMS Cellular Gateway Configuration"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-300" />
+              <span>Twilio Gateway Settings</span>
+            </button>
+
+            <button
               onClick={onClose}
-              className="p-2 text-neutral-400 hover:text-neutral-900 rounded-full hover:bg-neutral-100 transition"
+              className="p-2 text-neutral-400 hover:text-neutral-900 rounded-full hover:bg-neutral-100 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -494,7 +628,22 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
                 }`}
               >
                 <Terminal className="w-3.5 h-3.5" />
-                <span>Twilio Carrier Audit Log ({caseNotifications.length})</span>
+                <span>Carrier Audit Log ({caseNotifications.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('gateway_settings')}
+                className={`pb-2.5 px-3 text-xs font-bold transition border-b-2 flex items-center space-x-1.5 ${
+                  activeTab === 'gateway_settings'
+                    ? 'border-[#991b1b] text-[#991b1b]'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5 text-amber-600" />
+                <span>Twilio Gateway Settings ⚙️</span>
+                {twilioConfig.isLiveActive && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                )}
               </button>
             </div>
 
@@ -793,6 +942,21 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
             {/* TAB 3: TWILIO CARRIER DELIVERY AUDIT LOG */}
             {activeTab === 'audit_log' && (
               <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
+                {/* Twilio Credentials Quick Launch Banner */}
+                <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 text-xs text-amber-950 font-medium">
+                    <Key className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Configure your <strong>Twilio Account SID</strong>, <strong>Auth Token</strong> &amp; <strong>Sender Phone Number</strong></span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('gateway_settings')}
+                    className="px-3 py-1.5 bg-[#991b1b] hover:bg-[#7f1d1d] text-white text-xs font-bold rounded-lg shrink-0 shadow-xs flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <Key className="w-3 h-3 text-amber-300" />
+                    <span>Configure Twilio Settings</span>
+                  </button>
+                </div>
+
                 <div className="p-3 bg-neutral-900 text-neutral-300 rounded-xl font-mono text-[11px] space-y-2 border border-neutral-800">
                   <div className="flex justify-between items-center text-neutral-400 border-b border-neutral-800 pb-1.5 text-[10px]">
                     <span>TWILIO CARRIER GATEWAY LOG</span>
@@ -815,6 +979,194 @@ export const LiveNotificationSimulatorModal: React.FC<LiveNotificationSimulatorM
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: TWILIO GATEWAY CONFIGURATION & LIVE SMS TEST */}
+            {activeTab === 'gateway_settings' && (
+              <div className="space-y-4 flex-1 overflow-y-auto pr-1 text-xs">
+                {/* Gateway Status Summary Card */}
+                <div className="p-3.5 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white rounded-2xl border border-neutral-700 shadow-md flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                      twilioConfig.isLiveActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>
+                      <Server className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h5 className="font-bold text-sm text-white">Twilio REST API Gateway Status</h5>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                          twilioConfig.isLiveActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}>
+                          {twilioConfig.isLiveActive ? '● LIVE ACTIVE' : '○ SIMULATION MODE'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-400">
+                        {twilioConfig.isLiveActive
+                          ? `Ready to broadcast live cellular SMS from ${twilioConfig.fromPhoneNumber || '+12122818850'}`
+                          : 'Enter your Twilio Account SID & Auth Token to connect live cellular network.'}
+                      </p>
+                    </div>
+                  </div>
+                  {twilioConfig.isLiveActive && (
+                    <span className="hidden sm:flex items-center gap-1 text-[11px] text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-800">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      5G Active
+                    </span>
+                  )}
+                </div>
+
+                {gatewaySavedToast && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-400 text-emerald-900 rounded-xl flex items-center justify-between font-bold animate-fadeIn">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Twilio Gateway Settings saved successfully!</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded">Ready</span>
+                  </div>
+                )}
+
+                {/* Form to enter keys */}
+                <form onSubmit={handleSaveInlineGateway} className="bg-[#f8fafc] border border-neutral-300 rounded-2xl p-4 space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+                    <span className="font-bold text-neutral-800 text-xs flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-[#991b1b]" />
+                      Twilio API Credentials &amp; Sender Phone
+                    </span>
+                    <a
+                      href="https://console.twilio.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-[#991b1b] hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <span>Get keys at Twilio Console</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-neutral-700 font-bold mb-1 text-[11px]">
+                        1. Twilio Account SID <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={gatewaySid}
+                        onChange={(e) => setGatewaySid(e.target.value)}
+                        placeholder="e.g. ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-mono text-neutral-900 focus:border-[#991b1b] outline-none shadow-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-neutral-700 font-bold mb-1 text-[11px]">
+                        2. Twilio Auth Token or API Secret <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={gatewayAuthToken}
+                        onChange={(e) => setGatewayAuthToken(e.target.value)}
+                        placeholder="e.g. 32-character authentication token"
+                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-mono text-neutral-900 focus:border-[#991b1b] outline-none shadow-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-neutral-700 font-bold mb-1 text-[11px]">
+                        3. Twilio Sender Phone Number (E.164) or Messaging Service SID <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={gatewayFromNumber}
+                        onChange={(e) => setGatewayFromNumber(e.target.value)}
+                        placeholder="+12122818850 or MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-mono text-neutral-900 focus:border-[#991b1b] outline-none shadow-xs"
+                      />
+                      <p className="text-[10px] text-neutral-500 mt-1">
+                        Use full international format starting with +1 (e.g. +12122818850 for Benta's Funeral Home Harlem dispatch line).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-[#991b1b] hover:bg-[#7f1d1d] text-white font-bold text-xs rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-amber-300" />
+                      <span>Save &amp; Activate Twilio Gateway</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Instant Test Sandbox */}
+                <div className="bg-amber-50/70 border border-amber-300 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-amber-700" />
+                      Dispatch Live Test SMS to Any Phone Number
+                    </span>
+                    <span className="text-[10px] text-amber-800 font-medium">Verify Real Cell Delivery</span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={gatewayTestPhone}
+                      onChange={(e) => setGatewayTestPhone(e.target.value)}
+                      placeholder="e.g. (917) 807-3995 or +19178073995"
+                      className="flex-1 bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-neutral-900 font-mono outline-none focus:border-[#991b1b]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleInlineTestSms}
+                      disabled={isGatewayTesting}
+                      className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-amber-300 font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60"
+                    >
+                      {isGatewayTesting ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5 text-amber-300" />
+                      )}
+                      <span>{isGatewayTesting ? 'Sending...' : '⚡ Send Test SMS'}</span>
+                    </button>
+                  </div>
+
+                  {gatewayTestFeedback && (
+                    <div className={`p-2.5 rounded-xl border text-[11px] font-medium flex items-start gap-2 ${
+                      gatewayTestFeedback.success
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                        : 'bg-red-50 border-red-300 text-red-900'
+                    }`}>
+                      {gatewayTestFeedback.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <p>{gatewayTestFeedback.message}</p>
+                        {gatewayTestFeedback.sid && (
+                          <p className="font-mono text-[10px] mt-0.5 opacity-80">SID: {gatewayTestFeedback.sid}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Terminal CLI Hint Box */}
+                <div className="p-3 bg-neutral-100 border border-neutral-300 rounded-xl space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-800">
+                    <Terminal className="w-3.5 h-3.5 text-neutral-600" />
+                    <span>Configure via Terminal CLI anytime:</span>
+                  </div>
+                  <code className="block bg-neutral-900 text-amber-300 p-2 rounded-lg text-[11px] font-mono select-all">
+                    npm run set-twilio &lt;ACCOUNT_SID&gt; &lt;AUTH_TOKEN&gt; &lt;PHONE_NUMBER&gt;
+                  </code>
                 </div>
               </div>
             )}

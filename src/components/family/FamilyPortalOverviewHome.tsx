@@ -31,6 +31,7 @@ interface FamilyPortalOverviewHomeProps {
   onOpenESignModal?: () => void;
   onUpdateCase?: (updatedCase: GoldenRecordCase) => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
+  onOpenGuidedTour?: () => void;
 }
 
 export const FamilyPortalOverviewHome: React.FC<FamilyPortalOverviewHomeProps> = ({
@@ -38,7 +39,8 @@ export const FamilyPortalOverviewHome: React.FC<FamilyPortalOverviewHomeProps> =
   onNavigateTab,
   onOpenESignModal: _onOpenESignModal,
   onUpdateCase,
-  onSendNotification
+  onSendNotification,
+  onOpenGuidedTour
 }) => {
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(0);
   const [attendeesCount, setAttendeesCount] = useState<number>(activeCase.arrangementAppointment?.attendingFamilyCount || 2);
@@ -402,6 +404,24 @@ export const FamilyPortalOverviewHome: React.FC<FamilyPortalOverviewHomeProps> =
               <div className="text-[10px] text-neutral-300">Jason Benta, LFD</div>
             </div>
           </div>
+
+          {/* Interactive Tutorial Launcher Banner */}
+          {onOpenGuidedTour && (
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                onClick={onOpenGuidedTour}
+                className="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-neutral-950 font-bold px-4 py-2.5 rounded-xl text-xs shadow-lg transition transform hover:scale-[1.02] cursor-pointer"
+                title="Start the 6-step interactive family portal guide"
+              >
+                <Sparkles className="w-4 h-4 text-neutral-950 animate-pulse" />
+                <span>Start Interactive Family Guide (6 Comfort Steps)</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <span className="text-[11px] text-amber-200/90 italic">
+                💡 Guided walkthrough of your obituary suite, floral gifts, live webcast & legal vault
+              </span>
+            </div>
+          )}
 
         </div>
       </div>

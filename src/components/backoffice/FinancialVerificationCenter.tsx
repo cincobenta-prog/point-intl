@@ -4,17 +4,24 @@ import {
   CheckCircle, 
   Plus, 
   Calculator, 
-  FileCheck2 
+  FileCheck2,
+  CreditCard
 } from 'lucide-react';
 
 interface FinancialVerificationCenterProps {
   caseData: GoldenRecordCase;
   onUpdateBilling: (updatedBilling: SplitBillingItem[]) => void;
+  onOpenStripeModal?: () => void;
+  onOpenQuickBooks?: (targetCase: GoldenRecordCase) => void;
+  onOpenCheckPrinter?: (targetCase: GoldenRecordCase) => void;
 }
 
 export const FinancialVerificationCenter: React.FC<FinancialVerificationCenterProps> = ({
   caseData,
-  onUpdateBilling
+  onUpdateBilling,
+  onOpenStripeModal,
+  onOpenQuickBooks,
+  onOpenCheckPrinter
 }) => {
   const [showAddPayer, setShowAddPayer] = useState(false);
   const [payerType, setPayerType] = useState<SplitBillingItem['payerType']>('Life Insurance Assignment');
@@ -96,12 +103,43 @@ export const FinancialVerificationCenter: React.FC<FinancialVerificationCenterPr
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onOpenStripeModal && (
+            <button
+              onClick={onOpenStripeModal}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-1.5 transition shadow-sm border border-emerald-400/40 cursor-pointer"
+              title="Open Stripe Merchant Terminal, Apple Pay & Split-Pay Crowdfunding Hub"
+            >
+              <CreditCard className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Stripe POS 💳</span>
+            </button>
+          )}
+
+          {onOpenQuickBooks && (
+            <button
+              onClick={() => onOpenQuickBooks(caseData)}
+              className="bg-sky-800 hover:bg-sky-900 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-1.5 transition shadow-sm border border-sky-400/40 cursor-pointer"
+              title="Sync Invoices & Line Items to QuickBooks Online"
+            >
+              <span>QuickBooks 📊</span>
+            </button>
+          )}
+
+          {onOpenCheckPrinter && (
+            <button
+              onClick={() => onOpenCheckPrinter(caseData)}
+              className="bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-1.5 transition shadow-sm border border-amber-400/40 cursor-pointer"
+              title="Print Cash Advance Check Voucher"
+            >
+              <span>Cash Advance 🖨️</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowAddPayer(true)}
-            className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center space-x-1.5 transition shadow-sm border border-amber-400/40"
+            className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-1.5 transition shadow-sm border border-amber-400/40 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 text-amber-300" />
-            <span>Add Split Payer / Source</span>
+            <span>Add Split Source</span>
           </button>
         </div>
       </div>

@@ -51,7 +51,7 @@ export const ManagerDirectorSchedulingView: React.FC<ManagerDirectorSchedulingVi
   // Optimizer interactive simulation state
   const [simServiceType, setSimServiceType] = useState<string>('Traditional Service and Burial');
   const [simVenue, setSimVenue] = useState<'Main Chapel (630 St Nicholas)' | 'External Church / Sanctuary' | 'Graveside Committal'>('External Church / Sanctuary');
-  const [simAssignedInHouseHours, setSimAssignedInHouseHours] = useState<number>(38); // Marcus Vance at 38h
+  const [simAssignedInHouseHours, setSimAssignedInHouseHours] = useState<number>(32); // Beth Crowe at 32h
 
   // Aggregate Metrics
   const totalServices = serviceAssignments.length;

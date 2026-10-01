@@ -1,0 +1,43 @@
+{
+  "name": "Benta's Funeral Home - Enterprise Operating System",
+  "short_name": "BFH OS",
+  "description": "Dignity, Tradition, and Digital Excellence Since 1928. Enterprise Operating System for Benta's Funeral Home, Inc. (NYS Reg #08850).",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#991b1b",
+  "orientation": "any",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "First Call Intake",
+      "short_name": "Intake",
+      "description": "Rapid first-call intake and removal dispatch",
+      "url": "/?action=intake",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Director Cases Pipeline",
+      "short_name": "Pipeline",
+      "description": "View active funeral director pipeline",
+      "url": "/?tab=pipeline",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Facility & Chapel Calendar",
+      "short_name": "Calendar",
+      "description": "Chapel reservation and service calendar",
+      "url": "/?tab=calendar",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
+  ]
+}

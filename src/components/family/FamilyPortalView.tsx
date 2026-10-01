@@ -61,11 +61,13 @@ import {
   Layout,
   MessageCircle,
   Trash2,
-  ScrollText
+  ScrollText,
+  Flower2
 } from 'lucide-react';
 import { FamilyPortalOverviewHome } from './FamilyPortalOverviewHome';
 import { FamilyCareConciergeView } from './FamilyCareConciergeView';
 import { FamilyWebcastServiceView } from './FamilyWebcastServiceView';
+import { FloralTributeShopModal } from './FloralTributeShopModal';
 
 interface VoiceTributeItem {
   id: string;
@@ -86,6 +88,8 @@ interface FamilyPortalViewProps {
   onUpdateCase: (updatedCase: GoldenRecordCase) => void;
   onOpenESignModal?: (doc?: DocumentItem) => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
+  onOpenFamilyProofApproval?: () => void;
+  onOpenGuidedTour?: () => void;
   onExitPortal: () => void;
   isStaffUser?: boolean;
 }
@@ -97,6 +101,7 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
   onUpdateCase,
   onOpenESignModal,
   onSendNotification,
+  onOpenGuidedTour,
   onExitPortal,
   isStaffUser = false
 }) => {
@@ -106,6 +111,9 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
   // Obituary Assistant Sub-View: 'interview' | 'drafting' | 'ledger' | 'safety' | 'approval'
   const [obitSection, setObitSection] = useState<'interview' | 'drafting' | 'ledger' | 'safety' | 'approval'>('interview');
   const [interviewStep, setInterviewStep] = useState<number>(1);
+
+  // Floral Tribute Shop Modal State
+  const [isFloralShopModalOpen, setIsFloralShopModalOpen] = useState<boolean>(false);
 
   // Toast Notification Alert State
   const [toastAlert, setToastAlert] = useState<string | null>(null);
@@ -1063,6 +1071,16 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
               <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                 👑 Licensed Staff Console Mode
               </span>
+              {onOpenGuidedTour && (
+                <button
+                  onClick={onOpenGuidedTour}
+                  className="flex items-center space-x-1 bg-amber-400/30 hover:bg-amber-400/40 text-amber-100 px-2.5 py-1 rounded text-[11px] font-bold transition border border-amber-300/50"
+                  title="Launch Family Portal Interactive Tutorial"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-200" />
+                  <span>Portal Tour 🎓</span>
+                </button>
+              )}
               <button
                 onClick={onExitPortal}
                 className="flex items-center space-x-1 bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 px-2.5 py-1 rounded text-[11px] font-bold transition border border-amber-400/30"
@@ -1077,6 +1095,16 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Confidential Family Portal</span>
               </span>
+              {onOpenGuidedTour && (
+                <button
+                  onClick={onOpenGuidedTour}
+                  className="flex items-center space-x-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-2.5 py-1 rounded text-[11px] font-bold transition border border-amber-400/40"
+                  title="Launch Family Portal Interactive Walkthrough"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-300 animate-pulse" />
+                  <span>Interactive Guide 💡</span>
+                </button>
+              )}
               <button
                 onClick={onExitPortal}
                 className="flex items-center space-x-1 bg-red-950/40 hover:bg-red-900/60 text-red-200 px-2.5 py-1 rounded text-[11px] font-bold transition border border-red-700/40"
@@ -1255,6 +1283,14 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
             <Car className="w-3.5 h-3.5" />
             <span>🚗 Service & Livery Status</span>
           </button>
+
+          <button
+            onClick={() => setIsFloralShopModalOpen(true)}
+            className="px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-md transition ml-auto"
+          >
+            <Flower2 className="w-3.5 h-3.5 text-amber-200" />
+            <span>🌸 Send Flowers (Daniela’s)</span>
+          </button>
         </div>
       </header>
 
@@ -1273,10 +1309,11 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
         {portalTab === 'home' && (
           <FamilyPortalOverviewHome
             activeCase={activeCase}
-            onNavigateTab={(tab) => setPortalTab(tab)}
+            onNavigateTab={(tab) => setPortalTab(tab as any)}
             onOpenESignModal={() => onOpenESignModal?.()}
             onUpdateCase={onUpdateCase}
             onSendNotification={onSendNotification}
+            onOpenGuidedTour={onOpenGuidedTour}
           />
         )}
 
@@ -4914,6 +4951,16 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
           </div>
         </div>
       )}
+
+      {/* Harlem Florist Guild & Sympathy Boutique Modal */}
+      <FloralTributeShopModal
+        isOpen={isFloralShopModalOpen}
+        onClose={() => setIsFloralShopModalOpen(false)}
+        activeCase={activeCase}
+        onOrderPlaced={(order) => {
+          showToast(`🌸 Floral tribute "${order.item.name}" ordered and dispatched to ${order.floristName}!`);
+        }}
+      />
 
     </div>
   );
