@@ -204,9 +204,17 @@ export function App() {
   // Executive Manager Suite & Cryptographic RBAC Session State
   const [managerSession, setManagerSession] = useState<SessionToken | null>(() => getActiveManagerSession());
   const [isManagerPinModalOpen, setIsManagerPinModalOpen] = useState<boolean>(false);
-  const [directorProfiles, setDirectorProfiles] = useState<DirectorProfile[]>(() => 
-    loadPersistedState<DirectorProfile[]>(STORAGE_KEYS.DIRECTOR_PROFILES, INITIAL_DIRECTOR_PROFILES)
-  );
+  const [directorProfiles, setDirectorProfiles] = useState<DirectorProfile[]>(() => {
+    const loaded = loadPersistedState<DirectorProfile[]>(STORAGE_KEYS.DIRECTOR_PROFILES, INITIAL_DIRECTOR_PROFILES);
+    if (!loaded || !Array.isArray(loaded) || loaded.some(d => d.name.toLowerCase().includes('carol'))) {
+      return INITIAL_DIRECTOR_PROFILES;
+    }
+    const hasUpdatedFlags = loaded.some(d => (d.name.includes('Beth') || d.name.includes('Billy')) && d.isManager);
+    if (!hasUpdatedFlags) {
+      return INITIAL_DIRECTOR_PROFILES;
+    }
+    return loaded;
+  });
   const [serviceAssignments, setServiceAssignments] = useState<ServiceDirectorAssignment[]>(() => 
     loadPersistedState<ServiceDirectorAssignment[]>(STORAGE_KEYS.SERVICE_ASSIGNMENTS, INITIAL_SERVICE_ASSIGNMENTS)
   );

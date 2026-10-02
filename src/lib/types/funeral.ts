@@ -1412,6 +1412,11 @@ export interface DirectorProfile {
   ytdEarnings?: number;
   punctualityScore?: number; // percentage e.g. 99.4%
   
+  // Capability & Operational Scope
+  canMakeArrangements?: boolean; // True for in-house directors & managers who take first call & arrangement conferences
+  isIndependentContractor?: boolean; // True for contractor directors assigned to funeral services only
+  isManager?: boolean; // True for Managing Directors (Jason Benta, Beth Crowe, Billy McDonald)
+
   // Manager & Security Authentication
   securityPin?: string; // 4-digit PIN for manager / director authorization (e.g. "3995")
 }

@@ -509,22 +509,22 @@ export const ManagerDirectorSchedulingView: React.FC<ManagerDirectorSchedulingVi
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: OUTSOURCED TRADE GUILD & PER-DIEM DIRECTORS                        */}
+      {/* TAB 3: INDEPENDENT CONTRACTOR FUNERAL DIRECTORS (SERVICE ONLY)           */}
       {/* ========================================================================= */}
       {activeTab === 'outsourced' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-neutral-200 shadow-2xs">
             <div>
               <h3 className="font-serif-title font-bold text-base text-neutral-900">
-                Outsourced Trade Guild & Per-Diem Licensed Funeral Directors
+                Independent Contractor Licensed Funeral Directors (Funeral Services Only)
               </h3>
               <p className="text-xs text-neutral-500 font-light mt-0.5">
-                Vetted independent licensed directors from the Harlem Funeral Directors Guild and Manhattan Trade Network for peak surge and large liturgical ceremonies.
+                Vetted independent licensed funeral directors hired as contractors to direct and lead chapel, church, wake, and graveside committal services (do not make arrangement conferences).
               </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold px-3 py-1.5 rounded-xl">
-                4 Verified Trade Directors
+                {outsourcedDirectors.length} Independent Contractor LFDs
               </span>
             </div>
           </div>

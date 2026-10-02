@@ -277,7 +277,7 @@ export const DirectorAssignmentModal: React.FC<DirectorAssignmentModalProps> = (
                         filterType === 'all' ? 'bg-[#991b1b] text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
                       }`}
                     >
-                      All ({directors.length})
+                      All Available ({directors.length})
                     </button>
                     <button
                       type="button"
@@ -286,7 +286,7 @@ export const DirectorAssignmentModal: React.FC<DirectorAssignmentModalProps> = (
                         filterType === 'in_house' ? 'bg-[#991b1b] text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
                       }`}
                     >
-                      In-House Staff (3)
+                      In-House Staff ({directors.filter(d => d.type === 'in_house').length})
                     </button>
                     <button
                       type="button"
@@ -295,7 +295,7 @@ export const DirectorAssignmentModal: React.FC<DirectorAssignmentModalProps> = (
                         filterType === 'outsourced' ? 'bg-[#991b1b] text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
                       }`}
                     >
-                      Outsourced Guild (4)
+                      Independent Contractors ({directors.filter(d => d.type === 'outsourced').length})
                     </button>
                   </div>
                 </div>
@@ -322,11 +322,13 @@ export const DirectorAssignmentModal: React.FC<DirectorAssignmentModalProps> = (
                               <div className="flex items-center space-x-1.5">
                                 <h4 className="font-bold text-neutral-900 text-sm">{director.name}</h4>
                                 <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
-                                  isInHouse
+                                  director.isManager
+                                    ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                    : isInHouse
                                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                     : 'bg-blue-50 text-blue-800 border-blue-200'
                                 }`}>
-                                  {isInHouse ? '👔 In-House Staff' : '🤝 Trade Guild'}
+                                  {director.isManager ? '👑 Managing Director & LFD' : isInHouse ? '👔 In-House LFD' : '🤝 Independent Contractor (Service Directing)'}
                                 </span>
                               </div>
                               <p className="text-[11px] text-neutral-500 font-mono">{director.licenseNumber} • {director.yearsExperience} yrs exp</p>

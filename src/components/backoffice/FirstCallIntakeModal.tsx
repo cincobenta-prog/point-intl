@@ -1017,11 +1017,11 @@ EST. 1928 • HARLEM, NYC`;
                       onChange={(e) => handleDirectorChange(e.target.value)}
                       className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 font-bold outline-none focus:border-[#991b1b]"
                     >
-                      {directorProfiles.map(d => (
+                      {directorProfiles.filter(d => d.canMakeArrangements !== false && !d.isIndependentContractor).map(d => (
                         <option key={d.id} value={d.id}>{d.name} ({d.title})</option>
                       ))}
                       {directorProfiles.length === 0 && (
-                        <option value="dir-fd-1">Jason Benta (Licensed Funeral Director)</option>
+                        <option value="dir-mgr-1">Jason Benta (Director in Charge / Managing LFD)</option>
                       )}
                     </select>
                   </div>

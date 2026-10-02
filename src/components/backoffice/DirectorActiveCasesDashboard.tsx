@@ -149,7 +149,7 @@ export const DirectorActiveCasesDashboard: React.FC<DirectorActiveCasesDashboard
   };
 
   const activeDirector = directorProfiles.find(d => d.id === currentDirectorId) || directorProfiles[0];
-  const isManagerUser = currentRole === 'manager' || activeDirector?.roleType === 'manager';
+  const isManagerUser = currentRole === 'manager' || activeDirector?.roleType === 'manager' || activeDirector?.isManager === true;
 
   // Compute Unclaimed Cases
   const unclaimedCases = useMemo(() => {
@@ -383,17 +383,17 @@ export const DirectorActiveCasesDashboard: React.FC<DirectorActiveCasesDashboard
                 onChange={(e) => setTargetReassignDirectorId(e.target.value)}
                 className="w-full bg-neutral-50 border border-neutral-300 rounded-lg p-2.5 text-xs font-bold text-neutral-900 outline-none focus:border-[#991b1b]"
               >
-                <optgroup label="Licensed Funeral Directors (In-House Staff)">
-                  {directorProfiles.filter(d => d.roleType === 'funeral_director').map(d => (
+                <optgroup label="Managing Directors & Licensed Funeral Directors">
+                  {directorProfiles.filter(d => d.isManager || d.roleType === 'manager').map(d => (
                     <option key={d.id} value={d.id}>
-                      👔 {d.name} ({d.licenseNumber}) • {d.colorTheme.name}
+                      👑 {d.name} ({d.title})
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Managing Directors">
-                  {directorProfiles.filter(d => d.roleType === 'manager').map(d => (
+                <optgroup label="In-House Licensed Funeral Directors (Arrangements Lead)">
+                  {directorProfiles.filter(d => d.canMakeArrangements !== false && !d.isIndependentContractor && !d.isManager).map(d => (
                     <option key={d.id} value={d.id}>
-                      👑 {d.name} ({d.title})
+                      👔 {d.name} ({d.licenseNumber}) • {d.colorTheme.name}
                     </option>
                   ))}
                 </optgroup>
@@ -437,11 +437,11 @@ export const DirectorActiveCasesDashboard: React.FC<DirectorActiveCasesDashboard
                   {activeDirector?.name || 'Jason Benta'}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                  activeDirector?.roleType === 'manager' 
+                  activeDirector?.isManager || activeDirector?.roleType === 'manager' 
                     ? 'bg-purple-100 text-purple-900 border-purple-300'
                     : activeDirector?.colorTheme?.badgeBg || 'bg-blue-100 text-blue-900 border-blue-300'
                 }`}>
-                  {activeDirector?.roleType === 'manager' ? 'Managing Director (2 Admins)' : `Funeral Director • ${activeDirector?.colorTheme?.name}`}
+                  {activeDirector?.isManager || activeDirector?.roleType === 'manager' ? 'Managing Director & LFD (Full Access)' : `Funeral Director • ${activeDirector?.colorTheme?.name}`}
                 </span>
               </div>
               <div className="text-xs text-neutral-500 flex items-center space-x-2">
@@ -462,13 +462,13 @@ export const DirectorActiveCasesDashboard: React.FC<DirectorActiveCasesDashboard
                 className="bg-white border border-neutral-300 text-neutral-900 font-bold rounded-lg px-2.5 py-1 text-xs outline-none focus:border-[#991b1b] cursor-pointer"
               >
                 <optgroup label="Managing Directors (Full Access & Overrides)">
-                  {directorProfiles.filter(d => d.roleType === 'manager').map(d => (
+                  {directorProfiles.filter(d => d.isManager || d.roleType === 'manager').map(d => (
                     <option key={d.id} value={d.id}>👑 {d.name} ({d.title})</option>
                   ))}
                 </optgroup>
-                <optgroup label="Licensed Funeral Directors (Case Claiming)">
-                  {directorProfiles.filter(d => d.roleType === 'funeral_director').map(d => (
-                    <option key={d.id} value={d.id}>👤 {d.name} ({d.colorTheme.name})</option>
+                <optgroup label="Licensed Funeral Directors (Case Claiming & Arrangements)">
+                  {directorProfiles.filter(d => d.canMakeArrangements !== false && !d.isIndependentContractor && !d.isManager).map(d => (
+                    <option key={d.id} value={d.id}>👤 {d.name} ({d.colorTheme?.name || 'LFD'})</option>
                   ))}
                 </optgroup>
               </select>
