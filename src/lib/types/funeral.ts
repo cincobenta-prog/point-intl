@@ -284,6 +284,8 @@ export interface GoldenRecordCase {
   dispositionType: DispositionType;
   safeArrivalStatus: 'pending_removal' | 'in_transit' | 'safe_arrival_confirmed';
   safeArrivalTimestamp?: string;
+  removalReadiness?: RemovalReadinessStatus;
+  removalReadinessNotes?: string;
   assignedDirector: string;
   assignedDirectorId?: string;
   caseClaimStatus?: 'unclaimed' | 'claimed' | 'reassigned';
@@ -359,6 +361,12 @@ export type IntakePathwayType =
   | 'scheduled_arrangement_first'
   | 'imminent_hospice';
 
+export type RemovalReadinessStatus =
+  | 'pending_hospital_release'
+  | 'family_consultation_hold'
+  | 'ready_immediate_removal'
+  | 'in_custody';
+
 export interface FirstCallIntakeFormData {
   callerName: string;
   callerRelationship: string;
@@ -372,6 +380,15 @@ export interface FirstCallIntakeFormData {
   dateOfBirth: string;
   dateOfDeath: string;
   isExpectedDeath: boolean;
+  ssnLast4?: string;
+  maritalStatus?: 'married' | 'single' | 'widowed' | 'divorced';
+  fatherName?: string;
+  motherMaidenName?: string;
+  residenceAddress?: string;
+  
+  // Removal Readiness Triage
+  removalReadiness: RemovalReadinessStatus;
+  removalReadinessNotes?: string;
   
   locationType: RemovalLocationType;
   facilityName: string;
@@ -387,6 +404,14 @@ export interface FirstCallIntakeFormData {
   dispositionType: DispositionType;
   viewingParlor: 'Parlor A (Seats 120)' | 'Parlor B (Seats 110)' | 'Church / External Venue' | 'Direct / No Viewing';
   targetServiceDate?: string;
+  
+  // Arrangement Appointment Scheduling
+  scheduledAppointmentDate?: string;
+  scheduledAppointmentTime?: string;
+  scheduledAppointmentVenue?: string;
+  attendingFamilyCount?: number;
+  sendConfirmationEmail?: boolean;
+  sendConfirmationSms?: boolean;
   
   assignedDirectorId: string;
   assignedDirectorName: string;

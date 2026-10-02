@@ -23,11 +23,9 @@ export function createCaseFromFirstCall(
 
   // Determine initial phase and status based on pathway
   const isRemovalFirst = formData.intakePathway === 'unexpected_removal_first';
-  const isArrangementFirst = formData.intakePathway === 'scheduled_arrangement_first';
-  
   const initialPhase: CasePhase = isRemovalFirst ? 'intake_removal' : 'arrangements';
 
-  // Base decedent object
+  // Base decedent object with full vital statistics
   const decedent = {
     legalName: formData.decedentLegalName.trim(),
     gender: formData.gender,
@@ -35,17 +33,17 @@ export function createCaseFromFirstCall(
     dateOfDeath: formData.dateOfDeath || dateToday,
     placeOfDeath: `${formData.facilityName}${formData.facilityAddress ? ', ' + formData.facilityAddress : ''}`,
     facilityName: formData.facilityName,
-    ssnMasked: 'XXX-XX-XXXX',
-    maritalStatus: 'single' as const,
-    residenceAddress: formData.callerAddress || 'Harlem, New York, NY',
+    ssnMasked: formData.ssnLast4 ? `***-**-${formData.ssnLast4}` : 'XXX-XX-XXXX',
+    maritalStatus: formData.maritalStatus || ('single' as const),
+    residenceAddress: formData.residenceAddress || formData.callerAddress || 'Harlem, New York, NY',
     city: 'New York',
     state: 'NY',
     zipCode: '10030',
     veteran: false,
     occupation: 'Not Provided at Intake',
     industry: 'General',
-    fatherName: 'Not Provided at Intake',
-    motherMaidenName: 'Not Provided at Intake'
+    fatherName: formData.fatherName || 'Not Provided at Intake',
+    motherMaidenName: formData.motherMaidenName || 'Not Provided at Intake'
   };
 
   // Base informant object
@@ -139,7 +137,7 @@ export function createCaseFromFirstCall(
   const removalSchedule: RemovalScheduleInfo = {
     id: `rem-${Date.now()}`,
     caseId: caseId,
-    status: isRemovalFirst ? 'dispatched_en_route' : 'pending_dispatch',
+    status: formData.removalReadiness === 'ready_immediate_removal' ? 'dispatched_en_route' : 'pending_dispatch',
     locationType: formData.locationType,
     facilityName: formData.facilityName,
     facilityAddress: formData.facilityAddress,
@@ -147,7 +145,7 @@ export function createCaseFromFirstCall(
     facilityContactPhone: formData.facilityContactPhone,
     morgueAttendantOrNurse: formData.morgueAttendantOrNurse || 'Staff Nurse / Morgue Officer',
     urgency: formData.urgency,
-    targetCallTime: isRemovalFirst ? 'Immediate First Call (Within 45 Mins)' : 'Scheduled Upon Release',
+    targetCallTime: formData.removalReadiness === 'ready_immediate_removal' ? 'Immediate First Call (Within 45 Mins)' : 'Scheduled Upon Facility Release',
     estimatedArrivalMinutes: 35,
     assignedDirector: formData.assignedDirectorName,
     directorLicenseNumber: 'NYS LFD Reg. #08850',
@@ -156,12 +154,22 @@ export function createCaseFromFirstCall(
     vehicleType: 'First Call Custom Van (BFH-1)',
     vehiclePlate: 'BFH-CUSTODY-1',
     specialEquipment: formData.specialEquipment,
-    specialInstructions: formData.specialInstructions || 'Direct hospital/facility intake. Custody authorized by Informant under NYS PHL § 4201.',
-    directorSmsDispatched: isRemovalFirst,
-    facilitySmsDispatched: isRemovalFirst,
-    familySmsDispatched: isRemovalFirst,
+    specialInstructions: formData.specialInstructions || (
+      formData.removalReadiness === 'pending_hospital_release' 
+        ? 'Loved one resting at facility. Removal pending physician/morgue clearance.' 
+        : formData.removalReadiness === 'family_consultation_hold'
+        ? 'Family consultation first. Transfer to be scheduled following conference.'
+        : 'Direct hospital/facility intake. Custody authorized by Informant under NYS PHL § 4201.'
+    ),
+    directorSmsDispatched: formData.removalReadiness === 'ready_immediate_removal',
+    facilitySmsDispatched: formData.removalReadiness === 'ready_immediate_removal',
+    familySmsDispatched: formData.sendConfirmationSms ?? true,
     affidavit: removalAffidavit
   };
+
+  const apptDate = formData.scheduledAppointmentDate || dateToday;
+  const apptTime = formData.scheduledAppointmentTime || '10:00 AM';
+  const apptVenue = formData.scheduledAppointmentVenue || '630 St. Nicholas Ave - Arrangement Suite 1';
 
   // Initial Arrangement Appointment
   const arrangementAppointment: ArrangementAppointmentInfo = {
@@ -172,18 +180,25 @@ export function createCaseFromFirstCall(
     informantName: informant.fullName,
     informantPhone: informant.phone,
     informantEmail: informant.email,
-    status: isArrangementFirst ? 'proposed_options_sent' : 'proposed_options_sent',
-    meetingFormat: 'in_person_office',
-    locationVenue: '630 St. Nicholas Ave - Arrangement Suite A',
+    status: formData.scheduledAppointmentDate ? 'confirmed' : 'proposed_options_sent',
+    meetingFormat: apptVenue.includes('Virtual') ? 'virtual_video' : 'in_person_office',
+    locationVenue: apptVenue,
     assignedDirectorName: formData.assignedDirectorName,
     assignedDirectorPhone: '(212) 281-8850',
     assignedDirectorEmail: 'directors@bentasfuneralhome.com',
+    confirmedSlot: formData.scheduledAppointmentDate ? {
+      date: apptDate,
+      dateLabel: new Date(apptDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
+      time: apptTime,
+      durationMinutes: 90
+    } : undefined,
+    confirmedAt: formData.scheduledAppointmentDate ? `${dateToday} ${timeNow}` : undefined,
     proposedSlots: [
       {
         id: `slot-${Date.now()}-1`,
-        date: dateToday,
-        dateLabel: `Today (${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })})`,
-        time: '02:00 PM',
+        date: apptDate,
+        dateLabel: new Date(apptDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        time: apptTime,
         durationMinutes: 90,
         isAvailable: true,
         selectedByFamily: true
@@ -192,18 +207,18 @@ export function createCaseFromFirstCall(
         id: `slot-${Date.now()}-2`,
         date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
         dateLabel: `Tomorrow (${new Date(Date.now() + 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })})`,
-        time: '10:30 AM',
+        time: '02:00 PM',
         durationMinutes: 90,
         isAvailable: true,
         selectedByFamily: false
       }
     ],
-    attendingFamilyCount: 2,
+    attendingFamilyCount: formData.attendingFamilyCount || 2,
     attendingFamilyNames: [informant.fullName],
     invitationChannel: 'both',
     invitationSentAt: `${dateToday} ${timeNow}`,
-    smsConfirmationSent: true,
-    emailConfirmationSent: true
+    smsConfirmationSent: formData.sendConfirmationSms ?? true,
+    emailConfirmationSent: formData.sendConfirmationEmail ?? true
   };
 
   // Documents
@@ -225,13 +240,15 @@ export function createCaseFromFirstCall(
     createdAt: new Date().toISOString(),
     currentPhase: initialPhase,
     dispositionType: formData.dispositionType,
-    safeArrivalStatus: 'pending_removal',
+    safeArrivalStatus: formData.removalReadiness === 'in_custody' ? 'safe_arrival_confirmed' : 'pending_removal',
+    removalReadiness: formData.removalReadiness,
+    removalReadinessNotes: formData.removalReadinessNotes,
     assignedDirector: formData.assignedDirectorName,
     assignedDirectorId: formData.assignedDirectorId,
     caseClaimStatus: 'claimed',
-    appointmentScheduled: isArrangementFirst,
-    appointmentDate: dateToday,
-    appointmentTime: '02:00 PM',
+    appointmentScheduled: Boolean(formData.scheduledAppointmentDate),
+    appointmentDate: apptDate,
+    appointmentTime: apptTime,
     decedent,
     informant,
     medicalCertifier,
@@ -261,15 +278,17 @@ export function createCaseFromFirstCall(
     notes: [
       {
         id: `note-${Date.now()}`,
-        author: 'Backoffice First Call Intake Studio',
+        author: 'Staff Phone Intake & Appointment Desk',
         timestamp: timeNow,
-        text: `First Call captured by Backoffice. Pathway: ${
-          isRemovalFirst 
-            ? '🚨 UNEXPECTED DEATH — IMMEDIATE REMOVAL FIRST' 
-            : isArrangementFirst 
-            ? '📅 ADVANCE ARRANGEMENT CONFERENCE FIRST' 
-            : '⚖️ IMMINENT HOSPICE HOLD'
-        }. Caller: ${informant.fullName} (${informant.relationship}, ${informant.phone}). Pickup facility: ${formData.facilityName}. Lead Director: ${formData.assignedDirectorName}.`
+        text: `Intake phone call captured by staff. Caller: ${informant.fullName} (${informant.relationship}, ${informant.phone}, ${informant.email}). Decedent: ${decedent.legalName}. Resting at: ${formData.facilityName}. Removal Readiness: ${
+          formData.removalReadiness === 'pending_hospital_release'
+            ? '🟡 PENDING HOSPITAL/DOCTOR RELEASE (Not ready for physical removal yet)'
+            : formData.removalReadiness === 'family_consultation_hold'
+            ? '🟠 FAMILY ARRANGEMENT FIRST (Hold removal until conference)'
+            : formData.removalReadiness === 'ready_immediate_removal'
+            ? '🟢 READY FOR IMMEDIATE REMOVAL DISPATCH'
+            : '🔵 IN BFH CUSTODY'
+        }. Appointment scheduled for ${apptDate} at ${apptTime} (${apptVenue}). What-to-Bring preparation packet dispatched to ${informant.email}.`
       }
     ]
   };

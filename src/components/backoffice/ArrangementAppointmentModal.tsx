@@ -22,7 +22,9 @@ import {
   Home,
   ScrollText,
   Copy,
-  Truck
+  Truck,
+  Mail,
+  Printer
 } from 'lucide-react';
 
 interface ArrangementAppointmentModalProps {
@@ -53,7 +55,7 @@ export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalPr
   const caseData = directCaseData || activeCase!;
   const existingAppt = caseData?.arrangementAppointment;
 
-  const [activeTab, setActiveTab] = useState<'setup_dispatch' | 'family_simulator' | 'confirmed_details'>(
+  const [activeTab, setActiveTab] = useState<'setup_dispatch' | 'family_simulator' | 'confirmed_details' | 'what_to_bring'>(
     existingAppt?.status === 'confirmed' ? 'confirmed_details' : 'setup_dispatch'
   );
 
@@ -437,6 +439,18 @@ export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalPr
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>3. Confirmed Schedule & Calendar Sync</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('what_to_bring')}
+            className={`px-4 py-2.5 rounded-t-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'what_to_bring'
+                ? 'bg-white text-[#991b1b] border-t-2 border-x border-[#991b1b] shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5 text-blue-600" />
+            <span>4. What to Bring & Family Packet (Email / Print)</span>
           </button>
         </div>
 
@@ -965,6 +979,312 @@ export const ArrangementAppointmentModal: React.FC<ArrangementAppointmentModalPr
                   </button>
                 </div>
               )}
+
+            </div>
+          )}
+
+          {/* TAB 4: WHAT TO BRING & FAMILY EMAIL PACKET */}
+          {activeTab === 'what_to_bring' && (
+            <div className="space-y-6 animate-fadeIn pb-6">
+              {/* Header & Quick Action Bar */}
+              <div className="bg-gradient-to-r from-neutral-900 to-[#1e2738] text-white p-5 rounded-2xl border border-amber-400/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                      Family Arrangement Preparation Packet
+                    </span>
+                    <span className="text-xs text-neutral-300">
+                      Case #{caseData.caseNumber}
+                    </span>
+                  </div>
+                  <h4 className="font-serif-title font-bold text-lg text-white mt-1">
+                    What to Bring Checklist & Email Confirmation
+                  </h4>
+                  <p className="text-xs text-neutral-300">
+                    Recipient: <strong className="text-white">{caseData.informant.fullName}</strong> ({caseData.informant.email || 'No email on file'} • {caseData.informant.phone})
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `WHAT TO BRING TO YOUR ARRANGEMENT CONFERENCE AT BENTA'S FUNERAL HOME:\n\n` +
+                        `Case: ${caseData.decedent.legalName} (#${caseData.caseNumber})\n` +
+                        `Appointment: ${caseData.arrangementAppointment?.confirmedSlot?.dateLabel || 'Scheduled Conference'} at ${caseData.arrangementAppointment?.confirmedSlot?.time || 'Confirmed Time'}\n` +
+                        `Location: ${caseData.arrangementAppointment?.locationVenue || '630 St. Nicholas Ave, Harlem, NY 10030'}\n\n` +
+                        `1. VITAL STATISTICS & BIOGRAPHICAL DATA:\n` +
+                        `• Full legal name, date of birth, place of birth\n` +
+                        `• Social Security Number\n` +
+                        `• Father's full legal name & Mother's maiden name\n` +
+                        `• Highest level of education completed\n` +
+                        `• Military discharge papers (DD-214) if veteran\n\n` +
+                        `2. CLOTHING & GROOMING FOR DECEASED:\n` +
+                        `• Complete outfit (undergarments, stockings/socks, dress/suit, shoes)\n` +
+                        `• Recent clear photograph for hair styling & makeup guidance\n` +
+                        `• Eyeglasses & specific jewelry (with instructions to return or stay)\n\n` +
+                        `3. LEGAL & FINANCIAL DOCUMENTS:\n` +
+                        `• Government photo ID of Authorized Informant (Next of Kin)\n` +
+                        `• Cemetery Deed / Plot certificate / Niche purchase agreement (if owned)\n` +
+                        `• Life insurance policy documents (for direct C&J assignment)\n\n` +
+                        `4. MEMORIAL PROGRAM & TRIBUTE PHOTOS:\n` +
+                        `• 25–50 family photos for 360° digital tribute & program collage\n` +
+                        `• Written obituary draft, favorite scriptures, songs, or pallbearer list`
+                      );
+                      showToast('Copied complete "What to Bring" guide to clipboard!');
+                    }}
+                    className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-neutral-600 shadow-xs"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Copy Checklist</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-neutral-600 shadow-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-blue-300" />
+                    <span>Print Guide</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      if (onSendNotification) {
+                        const notif: SimulatedNotification = {
+                          id: `notif-packet-${Date.now()}`,
+                          caseId: caseData.id,
+                          decedentName: caseData.decedent.legalName,
+                          recipientName: caseData.informant.fullName,
+                          recipientPhone: caseData.informant.phone,
+                          recipientEmail: caseData.informant.email,
+                          channel: 'email',
+                          type: 'service_schedule',
+                          title: "Appointment Confirmation & What to Bring Guide Dispatched",
+                          bodyText: `Confirmation email with complete What to Bring guide, online vital statistics pre-fill link, and parking directions sent to ${caseData.informant.email}. SMS careline notice sent to ${caseData.informant.phone}.`,
+                          sentAt: `Today ${timeStr}`,
+                          status: 'delivered'
+                        };
+                        onSendNotification(notif);
+                      }
+                      showToast(`Arrangement packet & What to Bring guide emailed to ${caseData.informant.email}!`);
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-[#991b1b] to-red-800 hover:brightness-110 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm border border-amber-300/40"
+                  >
+                    <Send className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Resend Email to Family</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Categorized Preparation Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1. Vital Statistics */}
+                <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 shadow-2xs space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                    <h5 className="font-bold text-xs text-amber-950 uppercase tracking-wide">
+                      Vital Statistics & Official Records
+                    </h5>
+                  </div>
+                  <ul className="text-xs text-neutral-700 space-y-1.5 pl-7 list-disc">
+                    <li><strong className="text-neutral-900">Full Legal Name, DOB & Place of Birth</strong> of deceased</li>
+                    <li><strong className="text-neutral-900">Social Security Number</strong> (for NYC EDRS / State registry)</li>
+                    <li><strong className="text-neutral-900">Father’s Full Name & Mother’s Maiden Name</strong></li>
+                    <li><strong className="text-neutral-900">Highest Level of Education & Occupation</strong></li>
+                    <li><strong className="text-neutral-900">Military Discharge Papers (Form DD-214)</strong> if veteran</li>
+                  </ul>
+                  <div className="pl-7 pt-1">
+                    <span className="text-[11px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded font-medium">
+                      💡 Family can also pre-fill this online via the Family Care Portal link
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Clothing & Grooming */}
+                <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-200/80 shadow-2xs space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                    <h5 className="font-bold text-xs text-blue-950 uppercase tracking-wide">
+                      Clothing, Grooming & Presentation
+                    </h5>
+                  </div>
+                  <ul className="text-xs text-neutral-700 space-y-1.5 pl-7 list-disc">
+                    <li><strong className="text-neutral-900">Complete Outfit:</strong> Undergarments, stockings/socks, suit or dress, and shoes</li>
+                    <li><strong className="text-neutral-900">Portrait Photograph:</strong> Clear recent picture for hairstyle, cosmetizing & facial guidance</li>
+                    <li><strong className="text-neutral-900">Eyeglasses, Rosary, or Religious Articles</strong> (if applicable)</li>
+                    <li><strong className="text-neutral-900">Jewelry Directive:</strong> Clear list of jewelry to stay with decedent or be returned to family</li>
+                  </ul>
+                </div>
+
+                {/* 3. Legal, Insurance & Deeds */}
+                <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 shadow-2xs space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                    <h5 className="font-bold text-xs text-emerald-950 uppercase tracking-wide">
+                      Legal Authority & Funding Documents
+                    </h5>
+                  </div>
+                  <ul className="text-xs text-neutral-700 space-y-1.5 pl-7 list-disc">
+                    <li><strong className="text-neutral-900">Government Photo ID</strong> of Authorized Next of Kin (Informant)</li>
+                    <li><strong className="text-neutral-900">NYS PHL § 4201 Proof of Authority</strong> (Spouse, Child, Executor, Designated Agent)</li>
+                    <li><strong className="text-neutral-900">Cemetery Deed / Plot Certificate / Niche Receipt</strong> (if already owned)</li>
+                    <li><strong className="text-neutral-900">Life Insurance Policies</strong> (for direct C&J assignment claim funding)</li>
+                  </ul>
+                </div>
+
+                {/* 4. Tribute & Memorial */}
+                <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-200/80 shadow-2xs space-y-2.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                    <h5 className="font-bold text-xs text-purple-950 uppercase tracking-wide">
+                      Memorial Program, Photos & Music
+                    </h5>
+                  </div>
+                  <ul className="text-xs text-neutral-700 space-y-1.5 pl-7 list-disc">
+                    <li><strong className="text-neutral-900">25 to 50 Digital / Physical Photos</strong> for 360° digital tribute & collage</li>
+                    <li><strong className="text-neutral-900">Obituary Draft / Biographical Story</strong> & list of surviving relatives</li>
+                    <li><strong className="text-neutral-900">Selected Hymns, Musical Selections & Scripture Readings</strong></li>
+                    <li><strong className="text-neutral-900">Names of Pallbearers & Key Participants</strong></li>
+                  </ul>
+                </div>
+
+              </div>
+
+              {/* LIVE EMAIL PACKET PREVIEW */}
+              <div className="border border-neutral-300 rounded-3xl overflow-hidden shadow-md bg-white">
+                
+                {/* Simulated Email Client Top Bar */}
+                <div className="bg-neutral-800 text-neutral-300 px-4 py-2.5 text-xs flex items-center justify-between border-b border-neutral-700">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+                    <span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                    <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                    <span className="font-mono text-[11px] text-neutral-300 pl-2">
+                      Outbound Email Delivery Preview: care@e-bfh.com ➔ {caseData.informant.email || 'informant@example.com'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
+                    Auto-Dispatched on Intake
+                  </span>
+                </div>
+
+                {/* Email Body */}
+                <div className="p-6 md:p-8 space-y-6 max-w-2xl mx-auto bg-neutral-50/50">
+                  
+                  {/* BFH Header Seal */}
+                  <div className="text-center space-y-1 border-b pb-4">
+                    <div className="w-12 h-12 rounded-full bg-[#991b1b] text-white flex items-center justify-center font-serif text-xl font-bold mx-auto border-2 border-amber-300 shadow-sm">
+                      B
+                    </div>
+                    <h3 className="font-serif-title font-bold text-lg text-neutral-900 tracking-wide">
+                      BENTA’S FUNERAL HOME, INC.
+                    </h3>
+                    <p className="text-[11px] text-neutral-500">
+                      630 Saint Nicholas Avenue • New York, NY 10030 • (212) 281-8850
+                    </p>
+                    <p className="text-[11px] text-amber-800 font-bold uppercase tracking-wider">
+                      Appointment Confirmation & Arrangement Preparation Guide
+                    </p>
+                  </div>
+
+                  {/* Salutation */}
+                  <div className="text-xs text-neutral-800 space-y-2">
+                    <p>Dear <strong>{caseData.informant.fullName}</strong>,</p>
+                    <p className="leading-relaxed">
+                      On behalf of the entire staff at Benta’s Funeral Home, please accept our deepest condolences on the passing of your beloved <strong>{caseData.decedent.legalName}</strong>. We are committed to serving your family with compassion, reverence, and utmost professionalism.
+                    </p>
+                  </div>
+
+                  {/* Confirmed Appointment Card */}
+                  <div className="bg-white p-4 rounded-2xl border-2 border-[#991b1b] shadow-sm space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="text-xs font-bold text-[#991b1b] uppercase tracking-wider">
+                        📅 Scheduled Arrangement Conference
+                      </span>
+                      <span className="text-[10px] font-mono text-neutral-500">
+                        Case #{caseData.caseNumber}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase block">Date & Time</span>
+                        <strong className="text-neutral-900 text-sm">
+                          {caseData.arrangementAppointment?.confirmedSlot?.dateLabel || 'Confirmed Appointment'} at {caseData.arrangementAppointment?.confirmedSlot?.time || 'Scheduled Time'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase block">Location</span>
+                        <strong className="text-neutral-900">
+                          {caseData.arrangementAppointment?.locationVenue || '630 St. Nicholas Ave (Arrangement Suite)'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase block">Assigned Funeral Director</span>
+                        <span className="text-neutral-800 font-semibold">
+                          {caseData.arrangementAppointment?.assignedDirectorName || caseData.assignedDirector || 'Jason Benta, LFD #08850'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase block">Arrival & Parking</span>
+                        <span className="text-neutral-800 font-semibold">
+                          Complimentary family courtyard parking
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Removal Readiness Status Notice */}
+                  <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Transfer & Custody Status:</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      {caseData.safeArrivalStatus === 'safe_arrival_confirmed' ? (
+                        <span className="text-emerald-800 font-semibold">Your loved one is resting safely in our care at 630 Saint Nicholas Avenue.</span>
+                      ) : (
+                        <span>Our Care Coordination unit is actively liaising with <strong className="text-amber-900">{caseData.removalSchedule?.facilityName || caseData.decedent.facilityName || 'the medical facility'}</strong> regarding all necessary doctor releases and transfer protocols.</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Online Vital Records Pre-Fill Button */}
+                  <div className="bg-gradient-to-r from-neutral-900 to-[#1e2738] text-white p-4 rounded-2xl text-center space-y-2">
+                    <h6 className="font-bold text-xs text-amber-300">
+                      ✨ Save Time: Pre-Fill Vital Records Online
+                    </h6>
+                    <p className="text-[11px] text-neutral-300">
+                      You can securely submit the remaining vital statistics, family obituary notes, and memorial photos prior to our meeting.
+                    </p>
+                    <div className="pt-1">
+                      <a
+                        href="#vital-form"
+                        onClick={(e) => { e.preventDefault(); showToast('Opened Online Family Vital Form Portal'); }}
+                        className="inline-block bg-amber-500 hover:bg-amber-400 text-neutral-950 font-extrabold text-xs px-5 py-2 rounded-xl transition shadow-sm"
+                      >
+                        Pre-Fill Vital Records Sheet Online →
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="text-[11px] text-neutral-500 text-center border-t pt-4 space-y-1">
+                    <p className="font-bold text-neutral-700">Benta’s Funeral Home • Serving Families with Honor Since 1928</p>
+                    <p>Questions or directions? Call our 24/7 Careline at <strong className="text-neutral-800">(212) 281-8850</strong></p>
+                  </div>
+
+                </div>
+
+              </div>
 
             </div>
           )}

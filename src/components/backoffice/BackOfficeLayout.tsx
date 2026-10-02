@@ -32,7 +32,8 @@ import {
   Printer,
   Bot,
   Video,
-  Zap
+  Zap,
+  PhoneCall
 } from 'lucide-react';
 
 interface BackOfficeLayoutProps {
@@ -112,7 +113,7 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
   onOpenQuickBooks: _onOpenQuickBooks,
   onOpenIntegrationsCenter,
   onOpenSimulationModal,
-  onOpenFirstCallIntake: _onOpenFirstCallIntake,
+  onOpenFirstCallIntake,
   onOpenDiscrepancyGuardrail: _onOpenDiscrepancyGuardrail,
   onOpenDirectorDayOfServiceHUD: _onOpenDirectorDayOfServiceHUD,
   onOpenFamilyProofApproval: _onOpenFamilyProofApproval,
@@ -235,6 +236,17 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
               <PlusCircle className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Case</span>
             </button>
+
+            {onOpenFirstCallIntake && (
+              <button
+                onClick={onOpenFirstCallIntake}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-xs border border-amber-400/50 cursor-pointer"
+                title="Take Family Phone Intake Call, Capture Vital Statistics & Schedule Arrangement Conference"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
+                <span>Phone Intake & Appointment 📞</span>
+              </button>
+            )}
 
             {onOpenRemovalModal && (
               <button
