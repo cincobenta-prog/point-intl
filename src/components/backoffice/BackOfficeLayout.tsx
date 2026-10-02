@@ -674,28 +674,6 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
             );
           })}
         </div>
-
-        {onOpenAIModal && (
-          <button
-            onClick={onOpenAIModal}
-            className="flex items-center space-x-2 px-3.5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs rounded-xl shadow-md border border-indigo-400/50 shrink-0 ml-3 cursor-pointer"
-            title="Open 24/7 AI Family Care Concierge, 9-Part Obituary Generator & Whisper Audio Archive"
-          >
-            <Bot className="w-4 h-4 text-indigo-200 animate-pulse" />
-            <span>AI Concierge &amp; Whisper Hub 🤖</span>
-          </button>
-        )}
-
-        {onOpenPressModal && (
-          <button
-            onClick={onOpenPressModal}
-            className="flex items-center space-x-2 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md border border-amber-400/50 shrink-0 ml-2 cursor-pointer"
-            title="Open Commercial Press Fulfillment, 300 DPI CMYK Programs & Hardcover Books"
-          >
-            <Printer className="w-4 h-4 text-amber-100" />
-            <span>Commercial Press 🖨️</span>
-          </button>
-        )}
       </nav>
 
     </div>
