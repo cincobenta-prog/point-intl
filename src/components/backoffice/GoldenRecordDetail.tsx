@@ -445,19 +445,7 @@ export const GoldenRecordDetail: React.FC<GoldenRecordDetailProps> = ({
             </button>
           )}
 
-          {/* 1. Discrepancy Guardrail Button */}
-          {onOpenDiscrepancyGuardrail && (
-            <button
-              onClick={onOpenDiscrepancyGuardrail}
-              className="bg-red-950/10 hover:bg-red-950/20 text-[#991b1b] border border-red-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow-2xs"
-              title="Open Zero-Slippage Multi-Document Discrepancy & NYS PHL § 4201 Guardrail"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-[#991b1b]" />
-              <span>🛡️ Discrepancy Guardrail</span>
-            </button>
-          )}
-
-          {/* 2. Director Day-of-Service HUD Button */}
+          {/* 1. Director Day-of-Service HUD Button */}
           {onOpenDirectorDayOfServiceHUD && (
             <button
               onClick={onOpenDirectorDayOfServiceHUD}
