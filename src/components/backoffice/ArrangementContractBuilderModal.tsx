@@ -28,6 +28,10 @@ import {
 } from '../../lib/data/floralCatalog';
 import { CashAdvanceCheckPrinterModal } from './CashAdvanceCheckPrinterModal';
 import { 
+  CemeterySelectionModal, 
+  SelectedCemeteryPayload 
+} from './CemeterySelectionModal';
+import { 
   FileText, 
   Printer, 
   Save, 
@@ -47,7 +51,9 @@ import {
   Tag,
   Image as ImageIcon,
   HandCoins,
-  Key
+  Key,
+  Search,
+  MapPin
 } from 'lucide-react';
 
 
@@ -124,12 +130,21 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
   const [newCashAdvDesc, setNewCashAdvDesc] = useState('');
   const [newCashAdvAmount, setNewCashAdvAmount] = useState(150);
   const [isCheckPrinterOpen, setIsCheckPrinterOpen] = useState(false);
+  const [isCemeteryModalOpen, setIsCemeteryModalOpen] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleCemeterySelected = (payload: SelectedCemeteryPayload) => {
+    const updated = { ...statementData };
+    updated.sectionII.cemeteryOrCrematoryName = payload.cemeteryName;
+    updated.sectionII.cemeteryOrCrematoryAmount = payload.feeAmount;
+    setStatementData(calculateAP47Totals(updated));
+    showToast(`✓ Final destination set to ${payload.cemeteryName} ($${payload.feeAmount.toFixed(2)})`);
   };
 
 
@@ -894,6 +909,127 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                   )}
                 </div>
 
+              </div>
+
+              {/* ------------------------------------------------------------- */}
+              {/* STEP 2.B: FINAL DISPOSITION DESTINATION (CEMETERY / CREMATORY) */}
+              {/* ------------------------------------------------------------- */}
+              <div className="bg-gradient-to-br from-amber-50/70 via-white to-red-50/40 p-5 rounded-2xl border-2 border-amber-300 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200/80 pb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#991b1b] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                      🏛️
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-950">
+                          Pass-Through Cash Advance
+                        </span>
+                        <span className="text-[10px] text-neutral-500 font-mono">
+                          10 NYCRR § 77.8 Compliance
+                        </span>
+                      </div>
+                      <h4 className="font-serif-title text-base font-bold text-neutral-900 mt-0.5">
+                        Final Disposition Destination: Cemetery or Crematory
+                      </h4>
+                      <p className="text-xs text-neutral-600">
+                        Select the interment cemetery, mausoleum, or crematory facility to automatically set pass-through cash advance fees, livery cortege routing, and Form AP-47 line items.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCemeteryModalOpen(true)}
+                    className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-1.5 shadow-md shadow-red-950/20 cursor-pointer"
+                  >
+                    <Search className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Browse Cemetery Directory & Pricing Matrix</span>
+                  </button>
+                </div>
+
+                {/* Active Cemetery Information Display */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-white border border-amber-200 space-y-1 shadow-2xs md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                        Selected Cemetery Destination:
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Verified Payee</span>
+                      </span>
+                    </div>
+                    <div className="font-bold text-neutral-900 text-sm">
+                      {statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || "The Woodlawn Cemetery & Crematory"}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#991b1b]" />
+                      <span>Bronx, New York • Primary BFH Harlem partner facility (4199 Webster Ave)</span>
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white border border-amber-200 space-y-1 shadow-2xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
+                        Applied Pass-Through Fee:
+                      </span>
+                      <span className="text-[11px] text-neutral-500 block">
+                        Form AP-47 Line II.1
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-1 border-t border-neutral-100">
+                      <span className="text-xs text-neutral-600 font-medium">Invoice Total:</span>
+                      <span className="font-mono font-black text-base text-[#991b1b]">
+                        ${statementData.sectionII.cemeteryOrCrematoryAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick 1-Click Select Chips for Common Harlem Destinations */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold text-neutral-700 block uppercase tracking-wider">
+                    Quick-Select Frequent Tri-State Destinations:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 text-xs">
+                    {[
+                      { name: 'The Woodlawn Cemetery & Crematory', fee: 1850, label: 'Woodlawn (Bronx)', icon: '🏛️' },
+                      { name: 'Ferncliff Cemetery & Crematory', fee: 1950, label: 'Ferncliff (Hartsdale)', icon: '🕊️' },
+                      { name: 'The Green-Wood Cemetery & Crematory', fee: 2100, label: 'Green-Wood (Brooklyn)', icon: '🌳' },
+                      { name: 'Calverton National Cemetery (VA / U.S. Veterans)', fee: 0, label: 'Calverton VA (FREE)', icon: '🎖️' },
+                      { name: 'Trinity Church Cemetery and Mausoleum', fee: 2600, label: 'Trinity (Manhattan)', icon: '⛪' },
+                      { name: 'Fresh Pond Crematory', fee: 450, label: 'Fresh Pond (Queens)', icon: '🔥' }
+                    ].map((quick) => {
+                      const isActive = statementData.sectionII.cemeteryOrCrematoryName?.includes(quick.label.split(' ')[0]) ||
+                        (quick.fee === 0 && statementData.sectionII.cemeteryOrCrematoryAmount === 0);
+                      return (
+                        <button
+                          key={quick.name}
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...statementData };
+                            updated.sectionII.cemeteryOrCrematoryName = quick.name;
+                            updated.sectionII.cemeteryOrCrematoryAmount = quick.fee;
+                            setStatementData(calculateAP47Totals(updated));
+                            showToast(`✓ Selected ${quick.name} ($${quick.fee.toFixed(2)})`);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                            isActive
+                              ? 'bg-[#991b1b] text-white border-[#991b1b] shadow-xs'
+                              : 'bg-white hover:bg-neutral-100 text-neutral-800 border-neutral-300'
+                          }`}
+                        >
+                          <span>{quick.icon}</span>
+                          <span>{quick.label}</span>
+                          <span className={`font-mono text-[11px] ${isActive ? 'text-amber-300' : 'text-[#991b1b]'}`}>
+                            {quick.fee === 0 ? '$0.00' : `$${quick.fee}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {/* Automatic Baseline Breakdown Notification */}
@@ -2576,19 +2712,95 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
-                      <label className="font-bold text-neutral-800 block">1. Cemetery or Crematory Fee:</label>
-                      <input
-                        type="number"
-                        value={statementData.sectionII.cemeteryOrCrematoryAmount}
-                        onChange={(e) => {
-                          const updated = { ...statementData };
-                          updated.sectionII.cemeteryOrCrematoryAmount = parseFloat(e.target.value) || 0;
-                          setStatementData(calculateAP47Totals(updated));
-                        }}
-                        className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
-                      />
-                      <p className="text-[10px] text-neutral-500 italic">Payee: {statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || "Woodlawn Cemetery & Crematory"}</p>
+                    <div className="p-3.5 bg-white rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5 sm:col-span-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-base">🏛️</span>
+                          <div>
+                            <label className="font-bold text-xs text-neutral-900 block">
+                              1. Cemetery or Crematory Fee (Pass-Through):
+                            </label>
+                            <span className="text-[10px] text-neutral-500">
+                              Selected Cemetery: <strong className="text-neutral-900">{statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || "The Woodlawn Cemetery & Crematory"}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsCemeteryModalOpen(true)}
+                          className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                        >
+                          <Search className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Select Cemetery from Directory</span>
+                        </button>
+                      </div>
+
+                      {/* Quick Fee Options for Current Cemetery */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-neutral-600 block uppercase tracking-wider">
+                          Quick-Select Standard Fee Schedule for this Cemetery:
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[11px]">
+                          {[
+                            { label: 'Ground Burial', amount: 1850, icon: '⚰️' },
+                            { label: 'Cremation Retort', amount: 475, icon: '🔥' },
+                            { label: 'Witness Cremation', amount: 750, icon: '👁️' },
+                            { label: 'Mausoleum Crypt', amount: 2250, icon: '🏛️' },
+                            { label: 'Urn Niche', amount: 650, icon: '🏺' },
+                            { label: 'VA Veteran', amount: 0, icon: '🎖️' }
+                          ].map((tier) => {
+                            const isSelected = statementData.sectionII.cemeteryOrCrematoryAmount === tier.amount;
+                            return (
+                              <button
+                                key={tier.label}
+                                type="button"
+                                onClick={() => {
+                                  const updated = { ...statementData };
+                                  updated.sectionII.cemeteryOrCrematoryAmount = tier.amount;
+                                  setStatementData(calculateAP47Totals(updated));
+                                  showToast(`Applied ${tier.label} fee: $${tier.amount.toFixed(2)}`);
+                                }}
+                                className={`p-2 rounded-xl border text-center transition cursor-pointer flex flex-col justify-between ${
+                                  isSelected
+                                    ? 'bg-[#991b1b] text-white border-[#991b1b] font-bold shadow-xs'
+                                    : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border-neutral-200'
+                                }`}
+                              >
+                                <span className="text-xs">{tier.icon}</span>
+                                <span className="text-[10px] truncate">{tier.label}</span>
+                                <span className={`font-mono text-[10px] font-bold ${isSelected ? 'text-amber-300' : 'text-[#991b1b]'}`}>
+                                  {tier.amount === 0 ? '$0.00' : `$${tier.amount}`}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Fee Input Field */}
+                      <div className="pt-2 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[11px] text-neutral-500 italic">
+                          Payee on Pass-Through Check: <strong className="text-neutral-800">{statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || "Woodlawn Cemetery & Crematory"}</strong>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-bold text-neutral-700">Custom Invoice Amount:</span>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-xs">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={statementData.sectionII.cemeteryOrCrematoryAmount}
+                              onChange={(e) => {
+                                const updated = { ...statementData };
+                                updated.sectionII.cemeteryOrCrematoryAmount = parseFloat(e.target.value) || 0;
+                                setStatementData(calculateAP47Totals(updated));
+                              }}
+                              className="w-32 pl-6 pr-3 py-1.5 bg-neutral-50 border border-neutral-300 rounded-xl font-mono font-bold text-xs focus:bg-white focus:ring-2 focus:ring-[#991b1b] focus:outline-hidden"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
@@ -3419,6 +3631,17 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
 
           </div>
         </div>
+      )}
+
+      {/* Tri-State Cemetery & Crematory Directory & Pricing Modal */}
+      {isCemeteryModalOpen && (
+        <CemeterySelectionModal
+          isOpen={isCemeteryModalOpen}
+          onClose={() => setIsCemeteryModalOpen(false)}
+          currentCemeteryName={statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName}
+          currentFeeAmount={statementData.sectionII.cemeteryOrCrematoryAmount}
+          onSelectCemetery={handleCemeterySelected}
+        />
       )}
 
     </div>
