@@ -7,7 +7,6 @@ import {
 import { 
   Calendar, 
   Clock, 
-  Share2, 
   Send, 
   Mail, 
   Smartphone, 
@@ -19,19 +18,16 @@ import {
   Pause, 
   Volume2, 
   VolumeX, 
-  Maximize2, 
   Users, 
-  Key, 
-  Sparkles, 
-  Eye, 
-  Car, 
   Church, 
-  Heart,
-  X
+  ArrowLeft,
+  X,
+  Globe
 } from 'lucide-react';
 
 interface FamilyWebcastServiceViewProps {
   activeCase: GoldenRecordCase;
+  onBackToWelcome?: () => void;
   onUpdateCase?: (updatedCase: GoldenRecordCase) => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
   onOpenScheduleModal?: () => void;
@@ -39,6 +35,7 @@ interface FamilyWebcastServiceViewProps {
 
 export const FamilyWebcastServiceView: React.FC<FamilyWebcastServiceViewProps> = ({
   activeCase,
+  onBackToWelcome,
   onUpdateCase,
   onSendNotification,
   onOpenScheduleModal
@@ -55,20 +52,20 @@ export const FamilyWebcastServiceView: React.FC<FamilyWebcastServiceViewProps> =
     assignedAvTech: 'Marcus Vance (Harlem Media AV)',
     avTechPhone: '(212) 555-4920',
     streamUrl: `https://broadcast.e-bfh.com/live/${activeCase.caseNumber}`,
-    isPinProtected: true,
-    securityPin: '1928',
+    isPinProtected: false,
+    securityPin: '',
     cameraPresets: ['Pulpit Sanctuary Wide', 'Casket & Floral Alcove', 'Choir & Pipe Organ', 'Family Pew Front View'],
     audioBoardVerified: true,
     recordingArchived: false,
     estimatedViewers: 120,
-    notes: 'Sanctuary 4K PTZ Camera array active. Direct soundboard feed.'
+    notes: 'Sanctuary 4K PTZ Camera array active. Direct soundboard feed. Open worldwide access.'
   };
 
   // Video Player Preview State
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [currentCameraAngle, setCurrentCameraAngle] = useState(0);
-  const [liveViewerCount, setLiveViewerCount] = useState(webcast.estimatedViewers || 94);
+  const [liveViewerCount] = useState(webcast.estimatedViewers || 94);
 
   // Countdown timer simulation
   const [timeLeft, setTimeLeft] = useState({ hours: 14, minutes: 22, seconds: 45 });
@@ -124,9 +121,7 @@ export const FamilyWebcastServiceView: React.FC<FamilyWebcastServiceViewProps> =
   const [shareChannel, setShareChannel] = useState<'sms' | 'email'>('sms');
   const [recipientName, setRecipientName] = useState('');
   const [recipientContact, setRecipientContact] = useState('');
-  const [customMessage, setCustomMessage] = useState(
-    `You are warmly invited to celebrate the life of ${activeCase.decedent.legalName}. Join us in person or watch the live 4K sanctuary webcast: ${webcast.streamUrl} (Passcode: ${webcast.securityPin || 'None'}).`
-  );
+  const customMessage = `You are warmly invited to celebrate the life of ${activeCase.decedent.legalName}. Join us in person or watch the live 4K sanctuary webcast: ${webcast.streamUrl} (Open to all family and friends worldwide).`;
   
   // UI Modals & Toast
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -174,7 +169,7 @@ export const FamilyWebcastServiceView: React.FC<FamilyWebcastServiceViewProps> =
         channel: shareChannel === 'sms' ? 'sms' : 'email',
         type: 'webcast_invite',
         title: `Live Service Webcast Invitation: ${activeCase.decedent.legalName}`,
-        bodyText: `${customMessage}\n\nLive Broadcast Venue: ${webcast.venueName}\nDate: ${webcast.broadcastDate} at ${webcast.broadcastStartTime}\nLink: ${webcast.streamUrl}`,
+        bodyText: `${customMessage}\n\nLive Broadcast Venue: ${webcast.venueName}\nDate: ${webcast.broadcastDate} at ${webcast.broadcastStartTime}\nLink: ${webcast.streamUrl} (Open Access)`,
         status: 'delivered',
         sentAt: 'Just now'
       });
@@ -187,49 +182,25 @@ export const FamilyWebcastServiceView: React.FC<FamilyWebcastServiceViewProps> =
     setRecipientContact('');
   };
 
-  const handleSimulateStatus = (id: string, nextStatus: WebcastShareInvite['status']) => {
-    const updated = shares.map(s => s.id === id ? { ...s, status: nextStatus } : s);
-    setShares(updated);
-    if (nextStatus === 'watching') setLiveViewerCount(prev => prev + 1);
-  };
-
-  const servicePacketText = `=====================================================
-BENTA'S FUNERAL HOME, INC. • HARLEM, NEW YORK
-CELEBRATION OF LIFE & LIVE WEBCAST SERVICE ITINERARY
-=====================================================
-
-IN LOVING MEMORY OF:
-${activeCase.decedent.legalName} (${activeCase.decedent.dateOfBirth} — ${activeCase.decedent.dateOfDeath})
-
-1. VIEWING & VISITATION
-• Date & Time: ${activeCase.serviceSelections.serviceDate || 'Monday, September 21, 2026'} (4:00 PM - 8:00 PM)
-• Location: Benta's Funeral Home, ${activeCase.serviceSelections.viewingParlor}
-• Address: 630 Saint Nicholas Avenue, New York, NY 10030
-
-2. FUNERAL & SANCTUARY SERVICE
-• Date & Time: ${webcast.broadcastDate} (${webcast.broadcastStartTime})
-• Location: ${webcast.venueName} (630 St. Nicholas Ave)
-• Officiant: ${activeCase.serviceSelections.officiantName || 'Rev. Dr. Calvin Butts IV'}
-• Organist & Music: ${activeCase.serviceSelections.organistName || 'Marcus Roberts Ensemble'}
-
-3. LIVE HD WEBCAST & STREAMING BROADCAST
-• Live Webcast Link: ${webcast.streamUrl}
-• Stream Passcode: ${webcast.securityPin || 'Open / No PIN required'}
-• Broadcast Venue: Multi-Camera 4K Feed from ${webcast.venueName}
-
-4. INTERMENT & COMMITTAL CORTEGE
-• Destination: ${activeCase.serviceSelections.crematoryOrCemeteryName}
-• Limousine Escort: Benta Lead Car & Cortege departing 630 St. Nicholas Ave
-
-5. REPAST & FELLOWSHIP
-• Location: The Repast Room (630 St. Nicholas Ave) or Family Reception Hall
-
-Direct Benta Director Hotline: (212) 281-8850
-=====================================================`;
-
   return (
-    <div className="space-y-8 animate-fadeIn">
-      
+    <div className="space-y-6 animate-fadeIn">
+      {/* Universal Navigation Button Back to Welcome Page */}
+      <div className="flex items-center justify-between">
+        {onBackToWelcome && (
+          <button
+            onClick={onBackToWelcome}
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 rounded-xl font-bold text-xs transition border border-neutral-300 shadow-xs group cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#991b1b] group-hover:-translate-x-0.5 transition-transform" />
+            <span>← Back to Welcome Page</span>
+          </button>
+        )}
+        <div className="flex items-center space-x-2 text-xs text-neutral-500 font-mono">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          <span>Open Access Webcast • Worldwide Broadcast</span>
+        </div>
+      </div>
+
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#141b2b] text-white px-5 py-3 rounded-2xl shadow-2xl border border-amber-400 flex items-center space-x-3 text-xs font-bold animate-bounce">
@@ -247,6 +218,10 @@ Direct Benta Director Hotline: (212) 281-8850
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
               <span>4K HD Sanctuary Webcasting</span>
             </span>
+            <span className="bg-emerald-500/20 text-emerald-200 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-400/40 flex items-center gap-1">
+              <Globe className="w-3 h-3" />
+              <span>Open Access • No PIN Required</span>
+            </span>
             <span className="bg-amber-400/20 text-amber-200 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-400/40">
               {webcast.venueName}
             </span>
@@ -256,21 +231,21 @@ Direct Benta Director Hotline: (212) 281-8850
             Live Webcast & Complete Service Information
           </h2>
           <p className="text-xs sm:text-sm text-neutral-300 font-light leading-relaxed">
-            Family and friends worldwide can join the celebration of life for <strong>{activeCase.decedent.legalName}</strong> in high-definition video with direct soundboard audio. Share the official live broadcast link, service schedule, and printable bulletin below.
+            All family members, relatives, and friends worldwide can join the celebration of life for <strong className="text-amber-200">{activeCase.decedent.legalName}</strong> directly in high-definition video with direct soundboard audio. No PIN or password is required for any viewer.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               onClick={() => handleCopyText(webcast.streamUrl, 'Webcast URL')}
-              className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-2 shadow-md shadow-red-950/30"
+              className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-2 shadow-md shadow-red-950/30 cursor-pointer"
             >
               <Copy className="w-4 h-4 text-amber-300" />
-              <span>Copy Webcast Link ({webcast.streamUrl.replace('https://', '')})</span>
+              <span>Copy Direct Webcast Link ({webcast.streamUrl.replace('https://', '')})</span>
             </button>
 
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-2 border border-neutral-600"
+              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-2 border border-neutral-600 cursor-pointer"
             >
               <Printer className="w-4 h-4 text-amber-400" />
               <span>Print Keepsake Service Bulletin (with QR)</span>
@@ -279,7 +254,7 @@ Direct Benta Director Hotline: (212) 281-8850
             {onOpenScheduleModal && (
               <button
                 onClick={onOpenScheduleModal}
-                className="bg-amber-600/30 hover:bg-amber-600/40 text-amber-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-amber-500/50 flex items-center space-x-1.5"
+                className="bg-amber-600/30 hover:bg-amber-600/40 text-amber-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-amber-500/50 flex items-center space-x-1.5 cursor-pointer"
               >
                 <Clock className="w-3.5 h-3.5" />
                 <span>Director Scheduling Controls</span>
@@ -314,12 +289,10 @@ Direct Benta Director Hotline: (212) 281-8850
                   <Users className="w-3.5 h-3.5" />
                   <span>{liveViewerCount} tuned in</span>
                 </span>
-                {webcast.isPinProtected && (
-                  <span className="flex items-center space-x-1 text-amber-300 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-700/40 font-mono text-[10px]">
-                    <Key className="w-3 h-3" />
-                    <span>PIN: {webcast.securityPin}</span>
-                  </span>
-                )}
+                <span className="flex items-center space-x-1 text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-700/40 font-mono text-[10px]">
+                  <Globe className="w-3 h-3" />
+                  <span>Open Access</span>
+                </span>
               </div>
             </div>
 
@@ -340,7 +313,7 @@ Direct Benta Director Hotline: (212) 281-8850
               {/* Watermark Crest */}
               <div className="absolute top-4 left-4 z-10 pointer-events-none">
                 <span className="text-[10px] font-bold tracking-widest text-amber-400/90 uppercase font-serif-title bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-sm border border-amber-500/20">
-                  BENTA'S HARLEM SANCTUARY 4K
+                  BENTA'S HARLEM SANCTUARY 4K • OPEN BROADCAST
                 </span>
               </div>
 
@@ -374,7 +347,7 @@ Direct Benta Director Hotline: (212) 281-8850
 
                     <button
                       onClick={() => setIsPlaying(true)}
-                      className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs py-3 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-red-950/40"
+                      className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs py-3 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-red-950/40 cursor-pointer"
                     >
                       <Play className="w-4 h-4 fill-current text-amber-300" />
                       <span>Start Webcast Preview Stream</span>
@@ -402,491 +375,271 @@ Direct Benta Director Hotline: (212) 281-8850
                   </div>
                 </div>
               )}
-
             </div>
 
-            {/* Player Controls Bar */}
-            <div className="bg-[#141b2b] px-4 py-3 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-              
+            {/* Player Controls Toolbar */}
+            <div className="bg-[#141b2b] p-4 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-4 text-xs">
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className="p-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl transition"
+                  className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition cursor-pointer"
                 >
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
                 </button>
-
                 <button
                   onClick={() => setIsMuted(!isMuted)}
-                  className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl transition"
+                  className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition cursor-pointer"
                 >
-                  {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                  {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
                 </button>
+                <span className="text-neutral-400 text-[11px]">
+                  Audio board direct feed • 4K HDR
+                </span>
+              </div>
 
-                <div className="hidden sm:flex items-center space-x-1.5">
-                  <span className="text-[10px] text-neutral-400">Angle:</span>
-                  {webcast.cameraPresets.map((preset, idx) => (
-                    <button
-                      key={preset}
-                      onClick={() => {
-                        setCurrentCameraAngle(idx);
-                        setIsPlaying(true);
-                      }}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
-                        currentCameraAngle === idx 
-                          ? 'bg-[#991b1b] text-white shadow-xs' 
-                          : 'bg-neutral-800 text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      Cam {idx + 1}
-                    </button>
-                  ))}
+              {/* Multi-Camera Angle Selector */}
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mr-1">
+                  Camera:
+                </span>
+                {webcast.cameraPresets.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentCameraAngle(idx)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-mono transition cursor-pointer ${
+                      currentCameraAngle === idx
+                        ? 'bg-[#991b1b] text-white font-bold'
+                        : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    Cam {idx + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Service Details Card */}
+          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
+            <h3 className="font-serif-title text-lg font-bold text-neutral-900 border-b border-neutral-100 pb-3">
+              Sanctuary Service Schedule
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-1">
+                <div className="font-bold text-neutral-900 flex items-center space-x-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#991b1b]" />
+                  <span>Sanctuary Service</span>
                 </div>
+                <div className="text-neutral-600">{webcast.broadcastDate}</div>
+                <div className="text-neutral-500 font-mono text-[11px]">{webcast.broadcastStartTime} - {webcast.broadcastEndTime}</div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleCopyText(webcast.streamUrl, 'Webcast URL')}
-                  className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold rounded-xl text-xs transition flex items-center space-x-1.5"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Share</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    const elem = document.querySelector('.aspect-video');
-                    if (elem && elem.requestFullscreen) elem.requestFullscreen();
-                  }}
-                  className="p-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl transition"
-                  title="Full Screen"
-                >
-                  <Maximize2 className="w-4 h-4" />
-                </button>
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* Webcast Hardware & Sanctuary Audio Specs */}
-          <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-3">
-            <h4 className="font-serif-title font-bold text-neutral-900 text-sm flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>Sanctuary Broadcast Engineering Specifications</span>
-            </h4>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-1">
-                <span className="text-[10px] text-neutral-500 font-bold uppercase">Production Venue</span>
-                <div className="font-bold text-neutral-900">{webcast.venueName}</div>
-                <div className="text-[11px] text-emerald-700 font-semibold">4K PTZ Multi-Cam Array</div>
-              </div>
-
-              <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-1">
-                <span className="text-[10px] text-neutral-500 font-bold uppercase">Direct Audio Feed</span>
-                <div className="font-bold text-neutral-900">Yamaha 32-Ch Soundboard</div>
-                <div className="text-[11px] text-neutral-600">Pulpit, Choir & Pipe Organ</div>
-              </div>
-
-              <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-1">
-                <span className="text-[10px] text-neutral-500 font-bold uppercase">Assigned Director & AV</span>
-                <div className="font-bold text-neutral-900">{webcast.assignedDirector}</div>
-                <div className="text-[11px] text-[#991b1b]">{webcast.assignedAvTech}</div>
+              <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-1">
+                <div className="font-bold text-neutral-900 flex items-center space-x-1.5">
+                  <Church className="w-3.5 h-3.5 text-[#991b1b]" />
+                  <span>Service Venue</span>
+                </div>
+                <div className="text-neutral-600">{webcast.venueName}</div>
+                <div className="text-neutral-500 text-[11px]">630 St. Nicholas Ave, Harlem, NYC</div>
               </div>
             </div>
           </div>
-
         </div>
 
-        {/* RIGHT COLUMN: SEND INVITATIONS & COMPLETE SERVICE ITINERARY (5 Cols) */}
+        {/* RIGHT COLUMN: SHARE SUITE & GUESTBOOK (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
-
-          {/* 1. DISPATCH INVITATION FORM (SMS / EMAIL) */}
-          <div className="bg-white p-6 rounded-3xl border-2 border-amber-400/80 shadow-lg space-y-5 relative">
-            <div className="absolute top-0 right-8 transform -translate-y-1/2 bg-[#991b1b] text-amber-300 text-[10px] font-bold uppercase px-3 py-1 rounded-full shadow-md">
-              Fast Family Dispatch
+          
+          {/* Dispatch Webcast Links Card */}
+          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div>
+                <h3 className="font-serif-title text-base font-bold text-neutral-900">
+                  Share Webcast Link with Family
+                </h3>
+                <p className="text-[11px] text-neutral-500">
+                  Send the direct live stream link via SMS text message or Email.
+                </p>
+              </div>
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                No PIN Gate
+              </span>
             </div>
 
-            <div className="space-y-1">
-              <h3 className="font-serif-title text-lg font-bold text-neutral-900 flex items-center space-x-2">
-                <Send className="w-4 h-4 text-[#991b1b]" />
-                <span>Send Webcast Link & Service Details</span>
-              </h3>
-              <p className="text-xs text-neutral-600">
-                Send an instant text message or letterhead email to loved ones worldwide with the live stream link.
-              </p>
-            </div>
+            <form onSubmit={handleSendInvite} className="space-y-4 text-xs">
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShareChannel('sms')}
+                  className={`flex-1 py-2 rounded-xl font-bold flex items-center justify-center space-x-1.5 border transition cursor-pointer ${
+                    shareChannel === 'sms'
+                      ? 'bg-[#991b1b] text-white border-transparent shadow-xs'
+                      : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>SMS Text Message</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareChannel('email')}
+                  className={`flex-1 py-2 rounded-xl font-bold flex items-center justify-center space-x-1.5 border transition cursor-pointer ${
+                    shareChannel === 'email'
+                      ? 'bg-[#991b1b] text-white border-transparent shadow-xs'
+                      : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email Invitation</span>
+                </button>
+              </div>
 
-            {/* Channel Toggle (SMS vs Email) */}
-            <div className="grid grid-cols-2 gap-2 bg-neutral-100 p-1.5 rounded-2xl text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setShareChannel('sms')}
-                className={`py-2 rounded-xl transition flex items-center justify-center space-x-2 ${
-                  shareChannel === 'sms' 
-                    ? 'bg-[#991b1b] text-white shadow-sm' 
-                    : 'text-neutral-700 hover:text-neutral-900'
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>SMS Text Message</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShareChannel('email')}
-                className={`py-2 rounded-xl transition flex items-center justify-center space-x-2 ${
-                  shareChannel === 'email' 
-                    ? 'bg-[#991b1b] text-white shadow-sm' 
-                    : 'text-neutral-700 hover:text-neutral-900'
-                }`}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Email Letterhead</span>
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSendInvite} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-neutral-700">Recipient Name</label>
+              <div className="space-y-1.5">
+                <label className="font-bold text-neutral-800 text-[11px]">Recipient Full Name</label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Uncle Raymond, Church Deacon Board, Class of '68"
                   value={recipientName}
                   onChange={(e) => setRecipientName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 font-semibold outline-none focus:border-[#991b1b]"
+                  placeholder="e.g. Aunt Evelyn Vance"
+                  className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#991b1b] focus:outline-hidden"
+                  required
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-neutral-700">
-                  {shareChannel === 'sms' ? 'Mobile Phone Number (for SMS)' : 'Email Address'}
+              <div className="space-y-1.5">
+                <label className="font-bold text-neutral-800 text-[11px]">
+                  {shareChannel === 'sms' ? 'Mobile Phone Number' : 'Email Address'}
                 </label>
                 <input
                   type={shareChannel === 'sms' ? 'tel' : 'email'}
-                  required
-                  placeholder={shareChannel === 'sms' ? '(212) 555-0199' : 'family.member@gmail.com'}
                   value={recipientContact}
                   onChange={(e) => setRecipientContact(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 font-semibold outline-none focus:border-[#991b1b]"
-                />
-              </div>
-
-              {/* Message Draft Preview Box */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-bold text-neutral-700">Invitation Note</label>
-                  <span className="text-[11px] text-neutral-400">Includes Link & PIN Automatically</span>
-                </div>
-                <textarea
-                  rows={3}
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  className="w-full p-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-800 outline-none focus:border-[#991b1b]"
+                  placeholder={shareChannel === 'sms' ? '(212) 555-0199' : 'relative@example.com'}
+                  className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#991b1b] focus:outline-hidden"
+                  required
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs py-3 rounded-xl transition flex items-center justify-center space-x-2 shadow-md shadow-red-950/20"
+                className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs py-2.5 rounded-xl transition flex items-center justify-center space-x-2 shadow-md shadow-red-950/20 cursor-pointer"
               >
-                <Send className="w-4 h-4 text-amber-300" />
-                <span>Send Webcast Invitation via {shareChannel === 'sms' ? 'SMS' : 'Email'}</span>
+                <Send className="w-3.5 h-3.5 text-amber-300" />
+                <span>Send {shareChannel.toUpperCase()} Webcast Invite</span>
               </button>
             </form>
 
-            {/* 1-Click Instant Share Buttons */}
-            <div className="pt-3 border-t border-neutral-200 space-y-2">
-              <span className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider">
-                1-Click Instant Sharing
+            {/* Dispatched Invites Ledger */}
+            <div className="space-y-2 pt-2 border-t border-neutral-100">
+              <span className="text-[11px] font-bold text-neutral-700 block">
+                Dispatched Invitations ({shares.length})
               </span>
-              <div className="grid grid-cols-3 gap-2 text-xs font-bold text-center">
-                <a
-                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                    `Celebration of Life for ${activeCase.decedent.legalName}\nService: ${webcast.broadcastDate} at ${webcast.broadcastStartTime}\nVenue: ${webcast.venueName}\nLive HD Webcast: ${webcast.streamUrl} (PIN: ${webcast.securityPin || 'None'})`
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 rounded-xl transition flex items-center justify-center space-x-1"
-                >
-                  <span>WhatsApp</span>
-                </a>
-
-                <a
-                  href={`sms:?&body=${encodeURIComponent(
-                    `Celebration of Life for ${activeCase.decedent.legalName}: Join us in person or watch live: ${webcast.streamUrl} (PIN: ${webcast.securityPin || 'None'})`
-                  )}`}
-                  className="bg-sky-600 hover:bg-sky-700 text-white p-2.5 rounded-xl transition flex items-center justify-center space-x-1"
-                >
-                  <span>iMessage</span>
-                </a>
-
-                <button
-                  type="button"
-                  onClick={() => handleCopyText(servicePacketText, 'Full Service Itinerary')}
-                  className="bg-neutral-800 hover:bg-neutral-900 text-white p-2.5 rounded-xl transition flex items-center justify-center space-x-1"
-                >
-                  <Copy className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Copy Packet</span>
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-          {/* 2. LIVE GUEST ATTENDANCE & WATCH ROSTER */}
-          <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-3">
-            <div className="flex justify-between items-center">
-              <h4 className="font-serif-title font-bold text-neutral-900 text-sm flex items-center space-x-2">
-                <Users className="w-4 h-4 text-[#991b1b]" />
-                <span>Family & Friend Webcast Roster ({shares.length})</span>
-              </h4>
-              <span className="text-[11px] text-neutral-400">Live Status Tracking</span>
-            </div>
-
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {shares.map((share) => (
-                <div
-                  key={share.id}
-                  className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center justify-between text-xs hover:bg-neutral-100 transition"
-                >
-                  <div className="space-y-0.5">
-                    <div className="font-bold text-neutral-900 flex items-center space-x-1.5">
-                      <span>{share.recipientName}</span>
-                      <span className="text-[10px] text-neutral-400 font-normal">({share.channel.toUpperCase()})</span>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {shares.map((sh) => (
+                  <div key={sh.id} className="p-2.5 rounded-xl border border-neutral-200 bg-neutral-50 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="font-bold text-neutral-900">{sh.recipientName}</div>
+                      <div className="text-[10px] text-neutral-500">{sh.recipientContact} • {sh.viewerLocation}</div>
                     </div>
-                    <div className="text-[11px] text-neutral-500 flex items-center space-x-2">
-                      <span>{share.recipientContact}</span>
-                      {share.viewerLocation && (
-                        <span className="text-[10px] bg-neutral-200 px-1.5 py-0.2 rounded-md text-neutral-700">
-                          📍 {share.viewerLocation}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center space-x-1 ${
-                      share.status === 'watching' 
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse' 
-                        : share.status === 'opened' 
-                        ? 'bg-amber-100 text-amber-800 border border-amber-300' 
-                        : 'bg-blue-100 text-blue-800 border border-blue-200'
-                    }`}>
-                      {share.status === 'watching' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
-                      <span>{share.status === 'watching' ? 'Watching Live' : share.status === 'opened' ? 'Link Opened' : 'Invite Sent'}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">
+                      {sh.status}
                     </span>
-
-                    {share.status !== 'watching' && (
-                      <button
-                        onClick={() => handleSimulateStatus(share.id, 'watching')}
-                        className="text-[10px] text-[#991b1b] font-bold hover:underline"
-                        title="Simulate Guest Tuning In"
-                      >
-                        Tune In
-                      </button>
-                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 
+          {/* Quick Share Link Pill */}
+          <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-5 space-y-3">
+            <div className="flex items-center space-x-2 text-amber-900 font-bold text-xs">
+              <Globe className="w-4 h-4 text-amber-700" />
+              <span>Universal Shareable Webcast Link</span>
+            </div>
+            <div className="bg-white border border-amber-200 p-2.5 rounded-xl flex items-center justify-between text-xs font-mono text-neutral-700">
+              <span className="truncate pr-2">{webcast.streamUrl}</span>
+              <button
+                onClick={() => handleCopyText(webcast.streamUrl, 'Webcast URL')}
+                className="bg-amber-100 hover:bg-amber-200 text-amber-900 px-2 py-1 rounded-lg font-sans font-bold text-[10px] shrink-0 cursor-pointer"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Anyone with this link can watch the sanctuary broadcast in real-time. No login or PIN required.
+            </p>
+          </div>
         </div>
 
       </div>
 
-      {/* 3. COMPLETE SERVICE & ITINERARY BREAKDOWN (4-Card Grid) */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="font-serif-title text-xl font-bold text-neutral-900 flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-[#991b1b]" />
-            <span>Complete Service Schedule & Committal Itinerary</span>
-          </h3>
-          <button
-            onClick={() => handleCopyText(servicePacketText, 'Service Schedule')}
-            className="text-xs text-[#991b1b] font-bold hover:underline flex items-center space-x-1"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            <span>Copy Complete Itinerary</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Card 1: Viewing & Visitation */}
-          <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-3 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-[#991b1b]" />
-            <div className="flex items-center space-x-2 text-[#991b1b]">
-              <Eye className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">1. Viewing & Visitation</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-bold text-neutral-900">{activeCase.serviceSelections.viewingParlor}</div>
-              <div className="text-xs text-neutral-600">630 Saint Nicholas Avenue, Harlem</div>
-              <div className="text-xs font-semibold text-[#991b1b] mt-2">
-                {activeCase.serviceSelections.serviceDate || 'Monday, Sep 21'} • 4:00 PM - 8:00 PM
-              </div>
-            </div>
-            <p className="text-[11px] text-neutral-500 border-t border-neutral-100 pt-2">
-              Private family vigil first hour, followed by community visitation & floral tributes.
-            </p>
-          </div>
-
-          {/* Card 2: Funeral Sanctuary Service */}
-          <div className="bg-white p-5 rounded-3xl border-2 border-amber-400 shadow-md space-y-3 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#991b1b] via-[#d4af37] to-[#991b1b]" />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-[#991b1b]">
-                <Church className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">2. Sanctuary Funeral</span>
-              </div>
-              <span className="text-[9px] bg-red-100 text-[#991b1b] font-bold px-2 py-0.5 rounded-full">
-                Live Webcast
-              </span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-bold text-neutral-900">{webcast.venueName}</div>
-              <div className="text-xs text-neutral-600">Officiant: {activeCase.serviceSelections.officiantName || 'Rev. Dr. Calvin Butts IV'}</div>
-              <div className="text-xs font-bold text-[#991b1b] mt-2">
-                {webcast.broadcastDate} • {webcast.broadcastStartTime}
-              </div>
-            </div>
-            <p className="text-[11px] text-neutral-500 border-t border-neutral-100 pt-2">
-              Music: {activeCase.serviceSelections.organistName || 'Sanctuary Organ & Choral Ensemble'}.
-            </p>
-          </div>
-
-          {/* Card 3: Committal & Cortege */}
-          <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-3 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-neutral-700" />
-            <div className="flex items-center space-x-2 text-neutral-800">
-              <Car className="w-4 h-4 text-[#991b1b]" />
-              <span className="text-xs font-bold uppercase tracking-wider">3. Committal Procession</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-bold text-neutral-900">{activeCase.serviceSelections.crematoryOrCemeteryName}</div>
-              <div className="text-xs text-neutral-600">Lead Hearse & 2x Family Limousines</div>
-              <div className="text-xs font-semibold text-neutral-900 mt-2">
-                Cortege Departure: 1:15 PM
-              </div>
-            </div>
-            <p className="text-[11px] text-neutral-500 border-t border-neutral-100 pt-2">
-              Navy Military Honors flag folding ceremony & final committal blessing.
-            </p>
-          </div>
-
-          {/* Card 4: Repast & Fellowship */}
-          <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm space-y-3 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-emerald-600" />
-            <div className="flex items-center space-x-2 text-emerald-800">
-              <Heart className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs font-bold uppercase tracking-wider">4. Repast & Fellowship</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-bold text-neutral-900">The Repast Room</div>
-              <div className="text-xs text-neutral-600">630 St. Nicholas Ave (2nd Fl Hospitality)</div>
-              <div className="text-xs font-semibold text-emerald-800 mt-2">
-                3:00 PM - 6:00 PM
-              </div>
-            </div>
-            <p className="text-[11px] text-neutral-500 border-t border-neutral-100 pt-2">
-              Full buffet reception, memories sharing, and family fellowship.
-            </p>
-          </div>
-
-        </div>
-      </div>
-
-      {/* 4. MODAL: PRINTABLE SERVICE BULLETIN & WEBCAST KEEPSAKE (1-Page Order of Service + QR) */}
+      {/* 3. PRINTABLE BULLETIN MODAL */}
       {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border-2 border-amber-400 max-h-[92vh] overflow-y-auto">
-            
-            <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto border border-neutral-200 shadow-2xl animate-scaleIn">
+            <div className="flex justify-between items-center border-b border-neutral-200 pb-4">
               <div className="flex items-center space-x-2">
                 <Printer className="w-5 h-5 text-[#991b1b]" />
                 <h3 className="font-serif-title text-xl font-bold text-neutral-900">
-                  Printable Service Bulletin & Webcast Flyer
+                  Printable Service Bulletin & Webcast Pass
                 </h3>
               </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => window.print()}
-                  className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Print Bulletin</span>
-                </button>
-                <button
-                  onClick={() => setIsPrintModalOpen(false)}
-                  className="p-2 rounded-full hover:bg-neutral-100 text-neutral-500 transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={() => setIsPrintModalOpen(false)}
+                className="p-2 text-neutral-400 hover:text-neutral-700 rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* High-Fidelity Printable Service Bulletin Card */}
-            <div className="bg-white border-2 border-neutral-900 rounded-2xl p-6 sm:p-8 text-center space-y-5 shadow-inner relative overflow-hidden">
-              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-[#991b1b] via-[#d4af37] to-[#991b1b]" />
-              
-              <div className="space-y-1">
-                <span className="text-[9px] font-bold tracking-widest text-[#991b1b] uppercase">
-                  BENTA'S FUNERAL HOME, INC. • HARLEM, NYC
-                </span>
-                <h2 className="font-serif-title text-2xl font-bold text-neutral-900">
-                  Celebration of Life & Homegoing Service
-                </h2>
-                <div className="font-serif-title text-xl font-bold text-[#991b1b]">
-                  {activeCase.decedent.legalName}
-                </div>
-                <div className="text-xs text-neutral-500 italic">
-                  {activeCase.decedent.dateOfBirth} — {activeCase.decedent.dateOfDeath}
-                </div>
+            {/* Bulletin Preview Card */}
+            <div className="border-2 border-neutral-800 p-6 rounded-2xl space-y-4 font-serif text-center bg-amber-50/20">
+              <div className="text-xs uppercase tracking-widest text-[#991b1b] font-bold">
+                Benta's Funeral Home, Inc. • Harlem, NYC
+              </div>
+              <h2 className="text-2xl font-bold text-neutral-900">
+                Celebration of Life & Homegoing Service
+              </h2>
+              <div className="text-lg text-amber-900 font-bold">
+                {activeCase.decedent.legalName}
+              </div>
+              <div className="text-xs text-neutral-500">
+                {activeCase.decedent.dateOfBirth} — {activeCase.decedent.dateOfDeath}
               </div>
 
-              {/* Service Schedule Summary */}
-              <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl text-xs space-y-2 text-left">
-                <div className="font-bold text-neutral-900 border-b border-neutral-200 pb-1">Order of Service Schedule</div>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div><strong>Sanctuary Service:</strong> {webcast.broadcastDate} ({webcast.broadcastStartTime})</div>
-                  <div><strong>Venue:</strong> {webcast.venueName}</div>
-                  <div><strong>Officiant:</strong> {activeCase.serviceSelections.officiantName || 'Rev. Dr. Calvin Butts IV'}</div>
-                  <div><strong>Committal:</strong> {activeCase.serviceSelections.crematoryOrCemeteryName}</div>
-                </div>
+              <div className="pt-4 border-t border-neutral-200 text-left font-sans text-xs space-y-2">
+                <div><strong>Sanctuary Service:</strong> {webcast.broadcastDate} at {webcast.broadcastStartTime}</div>
+                <div><strong>Venue:</strong> {webcast.venueName} (630 Saint Nicholas Ave, Harlem, NY)</div>
+                <div><strong>Live 4K Webcast URL:</strong> {webcast.streamUrl} (Open to all family and friends)</div>
               </div>
 
-              {/* Webcast QR Section */}
-              <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex flex-col items-center justify-center space-y-2 max-w-xs mx-auto">
-                <div className="w-32 h-32 bg-white border border-neutral-300 rounded-xl p-2 flex items-center justify-center shadow-sm">
+              <div className="pt-4 flex flex-col items-center justify-center space-y-2">
+                <div className="w-28 h-28 bg-white border border-neutral-300 rounded-xl p-2 flex items-center justify-center shadow-xs">
                   <QrCode className="w-full h-full text-neutral-900" />
                 </div>
-                <div className="text-[11px] font-bold text-neutral-900">
-                  Scan to Watch Live 4K Webcast
+                <div className="text-[10px] font-sans font-bold text-neutral-600">
+                  Scan QR code to stream directly on any smartphone or tablet
                 </div>
-                <div className="text-[9px] font-mono text-neutral-600">
-                  {webcast.streamUrl}
-                </div>
-                {webcast.isPinProtected && (
-                  <div className="text-[10px] font-mono bg-amber-200/80 px-2 py-0.5 rounded font-bold text-[#991b1b]">
-                    Passcode: {webcast.securityPin}
-                  </div>
-                )}
-              </div>
-
-              <div className="text-[10px] text-neutral-400">
-                630 Saint Nicholas Ave, New York, NY 10030 • (212) 281-8850 • info@bentasfuneralhome.com
               </div>
             </div>
 
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                onClick={() => setIsPrintModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-800"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-5 py-2 rounded-xl transition flex items-center space-x-2 shadow-md"
+              >
+                <Printer className="w-4 h-4 text-amber-300" />
+                <span>Print Bulletin</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
-
     </div>
   );
 };

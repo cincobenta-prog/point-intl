@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   GoldenRecordCase, 
   ObituaryPackageData, 
   FactLedgerItem, 
   DocumentItem,
   SimulatedNotification,
-  LiveryCortegeRoute,
   FuneralAnnouncementData,
   AnnouncementTheme,
   AnnouncementAspectRatio,
@@ -21,7 +20,6 @@ import {
   Plus, 
   Image as ImageIcon, 
   Calendar, 
-  Car, 
   Check, 
   ArrowLeft, 
   AlertTriangle, 
@@ -31,7 +29,6 @@ import {
   Headphones, 
   Send, 
   Smartphone, 
-  User, 
   CheckCircle2, 
   Clock, 
   Eye, 
@@ -41,9 +38,6 @@ import {
   Home, 
   Edit3, 
   Lock, 
-  Unlock, 
-  Navigation, 
-  Building2, 
   Download, 
   ExternalLink, 
   Camera, 
@@ -79,14 +73,106 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
   cases,
   onSelectCase,
   onUpdateCase,
-  onOpenESignModal,
   onSendNotification,
   onOpenGuidedTour,
   onExitPortal,
   isStaffUser = false
 }) => {
   // Main Family Portal Nav Tab (Defaults to 'home' Welcome & Overview)
-  const [portalTab, setPortalTab] = useState<'home' | 'obituary' | 'tribute' | 'webcast' | 'concierge' | 'arrangements' | 'documents' | 'photos' | 'status'>('home');
+  const [portalTab, setPortalTab] = useState<'home' | 'obituary' | 'tribute' | 'webcast' | 'concierge' | 'arrangements' | 'documents' | 'photos'>('home');
+
+  // Interactive Document Viewer & E-Signature Pad State
+  const [viewingDoc, setViewingDoc] = useState<DocumentItem | null>(null);
+  const [signingDoc, setSigningDoc] = useState<DocumentItem | null>(null);
+  const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('type');
+  const [typedSignName, setTypedSignName] = useState<string>(activeCase.informant.fullName || '');
+  const [isAgreedTerms, setIsAgreedTerms] = useState<boolean>(false);
+  const [signDate, setSignDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [isSigningSubmitting, setIsSigningSubmitting] = useState<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isCanvasDrawing, setIsCanvasDrawing] = useState<boolean>(false);
+
+  // Canvas Drawing Handlers
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    setIsCanvasDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isCanvasDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsCanvasDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  // Execute Legal Signing Handler
+  const handleExecuteSigning = (docToSign: DocumentItem) => {
+    if (!isAgreedTerms) {
+      showToast('⚠️ Please certify the legal authorization affirmation checkbox.');
+      return;
+    }
+    if (signatureMode === 'type' && !typedSignName.trim()) {
+      showToast('⚠️ Please type your legal name to sign.');
+      return;
+    }
+
+    setIsSigningSubmitting(true);
+    setTimeout(() => {
+      const updatedDocs = activeCase.documents.map((d) => {
+        if (d.id === docToSign.id) {
+          return {
+            ...d,
+            status: 'completed' as const,
+            signedBy: typedSignName || activeCase.informant.fullName,
+            signDate: signDate,
+            followUpAction: `Executed & certified by ${typedSignName || activeCase.informant.fullName} on ${signDate} (Certificate ID: NY-DOH-${Math.floor(100000 + Math.random() * 900000)})`,
+            documentUrl: 'https://demo.docusign.net/documents/sample-signed.pdf'
+          };
+        }
+        return d;
+      });
+
+      const updatedCase: GoldenRecordCase = {
+        ...activeCase,
+        documents: updatedDocs
+      };
+
+      onUpdateCase(updatedCase);
+      setIsSigningSubmitting(false);
+      setSigningDoc(null);
+      setIsAgreedTerms(false);
+      showToast(`✓ Document "${docToSign.name}" has been legally signed and stamped.`);
+    }, 500);
+  };
 
   // Obituary Assistant Sub-View: 'interview' | 'drafting' | 'ledger' | 'safety' | 'approval'
   const [obitSection, setObitSection] = useState<'interview' | 'drafting' | 'ledger' | 'safety' | 'approval'>('interview');
@@ -100,240 +186,6 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
   const showToast = (msg: string) => {
     setToastAlert(msg);
     setTimeout(() => setToastAlert(null), 4500);
-  };
-
-  // Livery Cortege Route State
-  const defaultCortegeRoute: LiveryCortegeRoute = activeCase.cortegeRoute || {
-    id: `route-${activeCase.id}`,
-    caseId: activeCase.id,
-    pickupLocationName: `${activeCase.informant.fullName.split(' ').pop() || 'Family'} Residence`,
-    pickupAddress: activeCase.decedent.residenceAddress
-      ? `${activeCase.decedent.residenceAddress}, ${activeCase.decedent.city}, ${activeCase.decedent.state} ${activeCase.decedent.zipCode}`
-      : '409 Edgecombe Ave, Apt 6B, New York, NY 10032',
-    pickupContactName: activeCase.informant.fullName,
-    pickupContactPhone: activeCase.informant.phone,
-    pickupTime: '09:30 AM',
-    pickupFloorApt: 'Apt 6B (Elevator building, rear courtyard ramp access)',
-    pickupSpecialInstructions: 'Elder family member requires low-step entry. 2 floral standing sprays to be loaded with cortege.',
-    serviceVenueName: activeCase.serviceSelections.serviceVenueName || "Benta's Funeral Home - Chapel 1 (Main Sanctuary)",
-    serviceVenueAddress: '630 Saint Nicholas Ave, New York, NY 10030',
-    serviceTime: activeCase.serviceSelections.serviceTime || '11:00 AM',
-    dropoffLocationName: activeCase.serviceSelections.crematoryOrCemeteryName || 'Woodlawn Cemetery & Crematory',
-    dropoffAddress: '4199 Webster Ave, Bronx, NY 10470',
-    dropoffTime: '01:30 PM',
-    dropoffSpecialInstructions: 'Procession will assemble at Woolworth Gatehouse for witness committal service.',
-    returnLocationName: `${activeCase.informant.fullName.split(' ').pop() || 'Family'} Residence & Repast Gathering`,
-    returnAddress: activeCase.decedent.residenceAddress
-      ? `${activeCase.decedent.residenceAddress}, ${activeCase.decedent.city}, ${activeCase.decedent.state} ${activeCase.decedent.zipCode}`
-      : '409 Edgecombe Ave, New York, NY 10032',
-    returnRequired: true,
-    totalPassengers: 14,
-    vehiclesAllocated: [
-      {
-        vehicleType: 'Cadillac Professional Hearse',
-        vehicleSize: 'Custom / Standard',
-        quantity: 1,
-        assignedDriver: 'Jason Benta (LFD Escort Lead)',
-        driverPhone: '(212) 281-8850',
-        plateNumber: 'BFH-HEARSE-1'
-      },
-      {
-        vehicleType: 'Cadillac 8-Passenger Family Limousine',
-        vehicleSize: 'Limo 8-seater',
-        quantity: 2,
-        assignedDriver: 'Marcus Vance / Transport Fleet',
-        driverPhone: '(212) 555-4920',
-        plateNumber: 'BFH-LIMO-8A'
-      }
-    ],
-    isConfirmedByFamily: true,
-    confirmedAt: '2026-09-18 04:30 PM',
-    confirmedBy: activeCase.informant.fullName,
-    lastModifiedAt: '2026-09-18 04:30 PM',
-    serviceDateTime: `${activeCase.serviceSelections.serviceDate || '2026-09-22'} ${activeCase.serviceSelections.serviceTime || '11:00 AM'}`,
-    cutoffHours: 10,
-    isLockedBy10HourRule: false
-  };
-
-  const [cortegeRoute, setCortegeRoute] = useState<LiveryCortegeRoute>(activeCase.cortegeRoute || defaultCortegeRoute);
-  const [isEditingRoute, setIsEditingRoute] = useState<boolean>(false);
-  const [simulateUnder10hLock, setSimulateUnder10hLock] = useState<boolean>(false);
-
-  // Form State for editing
-  const [formPickupName, setFormPickupName] = useState(cortegeRoute.pickupLocationName);
-  const [formPickupAddress, setFormPickupAddress] = useState(cortegeRoute.pickupAddress);
-  const [formPickupTime, setFormPickupTime] = useState(cortegeRoute.pickupTime);
-  const [formPickupContact, setFormPickupContact] = useState(cortegeRoute.pickupContactName);
-  const [formPickupPhone, setFormPickupPhone] = useState(cortegeRoute.pickupContactPhone);
-  const [formPickupFloorApt, setFormPickupFloorApt] = useState(cortegeRoute.pickupFloorApt || '');
-  const [formPickupInstructions, setFormPickupInstructions] = useState(cortegeRoute.pickupSpecialInstructions || '');
-
-  const [formDropoffName, setFormDropoffName] = useState(cortegeRoute.dropoffLocationName);
-  const [formDropoffAddress, setFormDropoffAddress] = useState(cortegeRoute.dropoffAddress);
-  const [formDropoffTime, setFormDropoffTime] = useState(cortegeRoute.dropoffTime || '01:30 PM');
-  const [formDropoffInstructions, setFormDropoffInstructions] = useState(cortegeRoute.dropoffSpecialInstructions || '');
-
-  const [formReturnName, setFormReturnName] = useState(cortegeRoute.returnLocationName || '');
-  const [formReturnAddress, setFormReturnAddress] = useState(cortegeRoute.returnAddress || '');
-  const [formReturnRequired, setFormReturnRequired] = useState(cortegeRoute.returnRequired);
-  const [formPassengers, setFormPassengers] = useState(cortegeRoute.totalPassengers);
-
-  // Sync state when activeCase changes
-  useEffect(() => {
-    const route = activeCase.cortegeRoute || defaultCortegeRoute;
-    setCortegeRoute(route);
-    setFormPickupName(route.pickupLocationName);
-    setFormPickupAddress(route.pickupAddress);
-    setFormPickupTime(route.pickupTime);
-    setFormPickupContact(route.pickupContactName);
-    setFormPickupPhone(route.pickupContactPhone);
-    setFormPickupFloorApt(route.pickupFloorApt || '');
-    setFormPickupInstructions(route.pickupSpecialInstructions || '');
-    setFormDropoffName(route.dropoffLocationName);
-    setFormDropoffAddress(route.dropoffAddress);
-    setFormDropoffTime(route.dropoffTime || '01:30 PM');
-    setFormDropoffInstructions(route.dropoffSpecialInstructions || '');
-    setFormReturnName(route.returnLocationName || '');
-    setFormReturnAddress(route.returnAddress || '');
-    setFormReturnRequired(route.returnRequired);
-    setFormPassengers(route.totalPassengers);
-  }, [activeCase.id]);
-
-  // Is locked check
-  const isCortegeLocked = simulateUnder10hLock || cortegeRoute.isLockedBy10HourRule;
-
-  // Handle Save Route
-  const handleSaveRoute = () => {
-    if (isCortegeLocked) {
-      showToast('❌ Route is locked (within 10-hour cutoff). Please call Director on Duty at (212) 281-8850 for emergency adjustments.');
-      return;
-    }
-
-    const nowFormatted = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const updatedRoute: LiveryCortegeRoute = {
-      ...cortegeRoute,
-      pickupLocationName: formPickupName,
-      pickupAddress: formPickupAddress,
-      pickupTime: formPickupTime,
-      pickupContactName: formPickupContact,
-      pickupContactPhone: formPickupPhone,
-      pickupFloorApt: formPickupFloorApt,
-      pickupSpecialInstructions: formPickupInstructions,
-      dropoffLocationName: formDropoffName,
-      dropoffAddress: formDropoffAddress,
-      dropoffTime: formDropoffTime,
-      dropoffSpecialInstructions: formDropoffInstructions,
-      returnLocationName: formReturnName,
-      returnAddress: formReturnAddress,
-      returnRequired: formReturnRequired,
-      totalPassengers: formPassengers,
-      isConfirmedByFamily: true,
-      confirmedAt: nowFormatted,
-      confirmedBy: activeCase.informant.fullName,
-      lastModifiedAt: nowFormatted
-    };
-
-    setCortegeRoute(updatedRoute);
-    setIsEditingRoute(false);
-
-    onUpdateCase({
-      ...activeCase,
-      cortegeRoute: updatedRoute,
-      notes: [
-        {
-          id: `note-${Date.now()}`,
-          author: `Family Portal (${activeCase.informant.fullName})`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `Cortege Route updated & confirmed by Next of Kin. Pickup: ${formPickupAddress} (${formPickupTime}), Drop-off: ${formDropoffAddress} (${formDropoffTime}). Passengers: ${formPassengers}. Locked with Harlem Livery Dispatch.`
-        },
-        ...activeCase.notes
-      ]
-    });
-
-    if (onSendNotification) {
-      onSendNotification({
-        id: `notif-cortege-${Date.now()}`,
-        caseId: activeCase.id,
-        decedentName: activeCase.decedent.legalName,
-        recipientName: activeCase.assignedDirector,
-        recipientPhone: '(212) 281-8850',
-        channel: 'sms',
-        type: 'service_schedule',
-        title: `CORTEGE ROUTE CONFIRMED BY FAMILY: ${activeCase.decedent.legalName}`,
-        bodyText: `BFH DISPATCH ALERT: ${activeCase.informant.fullName} has confirmed pickup at ${formPickupAddress} (${formPickupTime}) and dropoff at ${formDropoffAddress} (${formDropoffTime}) for ${formPassengers} passengers. 10-Hour policy active.`,
-        sentAt: 'Just now',
-        status: 'delivered'
-      });
-    }
-
-    showToast(`✅ Pick-up & drop-off route successfully updated and confirmed with Harlem Livery Dispatch!`);
-  };
-
-  // Handle Quick Confirm
-  const handleQuickConfirmRoute = () => {
-    const nowFormatted = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const updatedRoute: LiveryCortegeRoute = {
-      ...cortegeRoute,
-      isConfirmedByFamily: true,
-      confirmedAt: nowFormatted,
-      confirmedBy: activeCase.informant.fullName,
-      lastModifiedAt: nowFormatted
-    };
-
-    setCortegeRoute(updatedRoute);
-
-    onUpdateCase({
-      ...activeCase,
-      cortegeRoute: updatedRoute,
-      notes: [
-        {
-          id: `note-${Date.now()}`,
-          author: `Family Portal (${activeCase.informant.fullName})`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `Cortege Route verified & confirmed by ${activeCase.informant.fullName}. Pickup: ${cortegeRoute.pickupAddress} at ${cortegeRoute.pickupTime}.`
-        },
-        ...activeCase.notes
-      ]
-    });
-
-    if (onSendNotification) {
-      onSendNotification({
-        id: `notif-cortege-${Date.now()}`,
-        caseId: activeCase.id,
-        decedentName: activeCase.decedent.legalName,
-        recipientName: activeCase.assignedDirector,
-        recipientPhone: '(212) 281-8850',
-        channel: 'sms',
-        type: 'service_schedule',
-        title: `CORTEGE ROUTE CONFIRMED: ${activeCase.decedent.legalName}`,
-        bodyText: `BFH DISPATCH: ${activeCase.informant.fullName} has verified and confirmed the cortege route for ${activeCase.decedent.legalName}.`,
-        sentAt: 'Just now',
-        status: 'delivered'
-      });
-    }
-
-    showToast(`✓ Cortege route and pick-up timing officially confirmed by ${activeCase.informant.fullName}!`);
-  };
-
-  // Dispatch SMS Itinerary to Family
-  const handleSendItinerarySMS = () => {
-    if (onSendNotification) {
-      onSendNotification({
-        id: `notif-itin-${Date.now()}`,
-        caseId: activeCase.id,
-        decedentName: activeCase.decedent.legalName,
-        recipientName: activeCase.informant.fullName,
-        recipientPhone: activeCase.informant.phone,
-        channel: 'sms',
-        type: 'service_schedule',
-        title: `Cortege Route Itinerary for ${activeCase.decedent.legalName}`,
-        bodyText: `BFH Cortege Itinerary: Pickup at ${cortegeRoute.pickupAddress} (${cortegeRoute.pickupTime}). Service at ${cortegeRoute.serviceVenueName} (${cortegeRoute.serviceTime}). Drop-off at ${cortegeRoute.dropoffLocationName} (${cortegeRoute.dropoffTime}). Lead Escort: ${cortegeRoute.vehiclesAllocated[0]?.assignedDriver || 'Director Benta'}. Note: Changes permitted up to 10h prior to service.`,
-        sentAt: 'Just now',
-        status: 'delivered'
-      });
-    }
-    showToast(`📱 Complete cortege itinerary dispatched via SMS to ${activeCase.informant.fullName} (${activeCase.informant.phone})!`);
   };
 
   // Photos & Announcement Studio Sub-Tab: 'announcement' | 'gallery'
@@ -909,7 +761,7 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
         <div className="max-w-7xl mx-auto mt-4 flex items-center space-x-1.5 overflow-x-auto pb-1">
           <button
             onClick={() => setPortalTab('home')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'home'
                 ? 'bg-[#991b1b] text-white shadow-md ring-2 ring-amber-400'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
@@ -921,31 +773,31 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
 
           <button
             onClick={() => setPortalTab('obituary')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'obituary'
                 ? 'bg-[#991b1b] text-white shadow-md'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>🕊️ Obituary & Story Studio (9-Part Method)</span>
+            <span>🕊️ Obituary & Story Studio</span>
           </button>
 
           <button
             onClick={() => setPortalTab('tribute')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'tribute'
                 ? 'bg-[#991b1b] text-white shadow-md'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
             }`}
           >
             <Headphones className="w-3.5 h-3.5 text-amber-500" />
-            <span>🎙️ 360° Digital Tribute & Voice Studio</span>
+            <span>🎙️ Digital Tribute</span>
           </button>
 
           <button
             onClick={() => setPortalTab('webcast')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'webcast'
                 ? 'bg-[#991b1b] text-white shadow-md ring-2 ring-amber-400'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
@@ -957,31 +809,31 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
 
           <button
             onClick={() => setPortalTab('concierge')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'concierge'
                 ? 'bg-[#991b1b] text-white shadow-md ring-2 ring-amber-400'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
-            <span>💬 24/7 Family Care Concierge & Legal Guide</span>
+            <span>💬 24/7 Family Care Concierge</span>
           </button>
 
           <button
             onClick={() => setPortalTab('arrangements')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'arrangements'
                 ? 'bg-[#991b1b] text-white shadow-md'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>📋 Arrangement & Vital Summary</span>
+            <span>📋 Arrangement Summary</span>
           </button>
 
           <button
             onClick={() => setPortalTab('documents')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'documents'
                 ? 'bg-[#991b1b] text-white shadow-md'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
@@ -993,31 +845,19 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
 
           <button
             onClick={() => setPortalTab('photos')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition cursor-pointer ${
               portalTab === 'photos'
                 ? 'bg-[#991b1b] text-white shadow-md'
                 : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
             }`}
           >
             <ImageIcon className="w-3.5 h-3.5" />
-            <span>📸 Memorial Photos & DVD Uploads</span>
-          </button>
-
-          <button
-            onClick={() => setPortalTab('status')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap transition ${
-              portalTab === 'status'
-                ? 'bg-[#991b1b] text-white shadow-md'
-                : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
-            }`}
-          >
-            <Car className="w-3.5 h-3.5" />
-            <span>🚗 Service & Livery Status</span>
+            <span>📸 Memorial Photos</span>
           </button>
 
           <button
             onClick={() => setIsFloralShopModalOpen(true)}
-            className="px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-md transition ml-auto"
+            className="px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 whitespace-nowrap bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-md transition ml-auto cursor-pointer"
           >
             <Flower2 className="w-3.5 h-3.5 text-amber-200" />
             <span>🌸 Send Flowers (Daniela’s)</span>
@@ -1041,17 +881,25 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
           <FamilyPortalOverviewHome
             activeCase={activeCase}
             onNavigateTab={(tab) => setPortalTab(tab as any)}
-            onOpenESignModal={() => onOpenESignModal?.()}
+            onOpenESignModal={() => {
+              const firstPending = activeCase.documents.find(d => d.status !== 'completed' && d.status !== 'signed') || activeCase.documents[0];
+              if (firstPending) {
+                setSigningDoc(firstPending);
+                setTypedSignName(activeCase.informant.fullName || '');
+                setIsAgreedTerms(false);
+              }
+            }}
             onUpdateCase={onUpdateCase}
             onSendNotification={onSendNotification}
             onOpenGuidedTour={onOpenGuidedTour}
           />
         )}
 
-        {/* TAB: 24/7 FAMILY CARE CONCIERGE & FINANCIAL/LEGAL GUIDE */}
+        {/* TAB: 24/7 FAMILY CARE CONCIERGE */}
         {portalTab === 'concierge' && (
           <FamilyCareConciergeView
             activeCase={activeCase}
+            onBackToWelcome={() => setPortalTab('home')}
             onNavigateTab={(tab) => setPortalTab(tab as any)}
           />
         )}
@@ -1060,15 +908,17 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
         {portalTab === 'webcast' && (
           <FamilyWebcastServiceView
             activeCase={activeCase}
+            onBackToWelcome={() => setPortalTab('home')}
             onUpdateCase={onUpdateCase}
             onSendNotification={onSendNotification}
           />
         )}
 
-        {/* TAB: 360° DIGITAL TRIBUTE & COFFEE TABLE KEEPSAKE STUDIO */}
+        {/* TAB: DIGITAL TRIBUTE STUDIO */}
         {portalTab === 'tribute' && (
           <DigitalTributeStudioView
             activeCase={activeCase}
+            onBackToWelcome={() => setPortalTab('home')}
             onUpdateCase={onUpdateCase}
             onSendNotification={onSendNotification}
             isStaffUser={isStaffUser}
@@ -1077,7 +927,20 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
 
         {/* TAB 1: OBITUARY & STORY STUDIO (The 9-Part Trauma-Informed Method) */}
         {portalTab === 'obituary' && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-fadeIn">
+            {/* Navigation button back to Welcome Page */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setPortalTab('home')}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 rounded-xl font-bold text-xs transition border border-neutral-300 shadow-xs group cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-[#991b1b] group-hover:-translate-x-0.5 transition-transform" />
+                <span>← Back to Welcome Page</span>
+              </button>
+              <div className="text-xs text-neutral-500 font-mono">
+                Case #{activeCase.caseNumber} • 9-Part Trauma-Informed Story Studio
+              </div>
+            </div>
             
             {/* Dignified Hero Banner (matching obituary-writer.html) */}
             <div className="bg-gradient-to-br from-[#141b2b] to-[#1f2a42] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden border border-amber-500/20">
@@ -1942,7 +1805,22 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
 
         {/* TAB 2: ARRANGEMENT & VITAL SUMMARY */}
         {portalTab === 'arrangements' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-6 animate-fadeIn">
+            {/* Top Navigation */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setPortalTab('home')}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 rounded-xl font-bold text-xs transition border border-neutral-300 shadow-xs group cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-[#991b1b] group-hover:-translate-x-0.5 transition-transform" />
+                <span>← Back to Welcome Page</span>
+              </button>
+              <div className="text-xs text-neutral-500 font-mono">
+                Case #{activeCase.caseNumber} • Vital Records & Arrangement Confirmation
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Service Selections Card */}
             <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
@@ -2126,7 +2004,6 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
                 </div>
               </div>
 
-
               <div className="p-3 bg-neutral-50 rounded-xl text-[11px] text-neutral-500 font-light flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>All charges are fully itemized according to Federal Trade Commission Funeral Rule and NYS DOH regulations. No non-itemized hidden fees.</span>
@@ -2177,68 +2054,137 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
               </div>
             </div>
 
+            </div>
           </div>
         )}
 
         {/* TAB 3: LEGAL DOCUMENTS & eSIGN */}
         {portalTab === 'documents' && (
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
-            <div className="flex justify-between items-center border-b border-neutral-200 pb-4">
-              <div>
-                <h3 className="font-serif-title text-xl font-bold text-neutral-900">
-                  Family e-Signature & Legal Authorizations Bundle
-                </h3>
-                <p className="text-xs text-neutral-500">
-                  Review and sign statutory documents authorized by the New York State Department of Health and Benta's Funeral Home.
-                </p>
-              </div>
+          <div className="space-y-6 animate-fadeIn">
+            {/* Top Navigation */}
+            <div className="flex items-center justify-between">
               <button
-                onClick={() => onOpenESignModal && onOpenESignModal()}
-                className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-md shadow-red-950/20"
+                onClick={() => setPortalTab('home')}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 rounded-xl font-bold text-xs transition border border-neutral-300 shadow-xs group cursor-pointer"
               >
-                <PenTool className="w-3.5 h-3.5 text-amber-300" />
-                <span>Launch eSign Pad</span>
+                <ArrowLeft className="w-4 h-4 text-[#991b1b] group-hover:-translate-x-0.5 transition-transform" />
+                <span>← Back to Welcome Page</span>
               </button>
+              <div className="text-xs text-neutral-500 font-mono">
+                Case #{activeCase.caseNumber} • NY State Compliant Legal Vault
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {activeCase.documents.map((doc) => (
-                <div key={doc.id} className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 hover:bg-neutral-50 transition flex flex-wrap items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="w-4 h-4 text-[#991b1b]" />
-                      <strong className="text-xs font-bold text-neutral-900">{doc.name}</strong>
-                    </div>
-                    <div className="text-[11px] text-neutral-500">{doc.followUpAction}</div>
-                  </div>
-
-                  <div className="flex items-center space-x-3">
-                    <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                      doc.status === 'signed' || doc.status === 'completed' || doc.status === 'approved'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
-                    }`}>
-                      {doc.status.toUpperCase()}
-                    </span>
-
-                    {doc.status !== 'signed' && doc.status !== 'completed' && (
-                      <button
-                        onClick={() => onOpenESignModal && onOpenESignModal(doc)}
-                        className="bg-white hover:bg-red-50 text-[#991b1b] border border-red-200 font-bold text-xs px-3 py-1 rounded-lg transition"
-                      >
-                        Sign Document
-                      </button>
-                    )}
-                  </div>
+            <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+              <div className="flex flex-wrap justify-between items-center border-b border-neutral-200 pb-4 gap-4">
+                <div>
+                  <h3 className="font-serif-title text-xl font-bold text-neutral-900">
+                    Family e-Signature & Legal Authorizations Bundle
+                  </h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Review, view, and legally execute statutory documents authorized by the New York State Department of Health and Benta's Funeral Home.
+                  </p>
                 </div>
-              ))}
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs bg-neutral-100 px-3 py-1.5 rounded-xl border border-neutral-200 text-neutral-700 font-semibold">
+                    {activeCase.documents.filter(d => d.status === 'completed' || d.status === 'signed').length} of {activeCase.documents.length} Executed
+                  </span>
+                  <button
+                    onClick={() => {
+                      const firstPending = activeCase.documents.find(d => d.status !== 'completed' && d.status !== 'signed') || activeCase.documents[0];
+                      if (firstPending) {
+                        setSigningDoc(firstPending);
+                        setTypedSignName(activeCase.informant.fullName || '');
+                        setIsAgreedTerms(false);
+                      }
+                    }}
+                    className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-md shadow-red-950/20 cursor-pointer"
+                  >
+                    <PenTool className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Launch eSign Pad</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {activeCase.documents.map((doc) => {
+                  const isCompleted = doc.status === 'signed' || doc.status === 'completed' || doc.status === 'approved';
+                  return (
+                    <div key={doc.id} className="p-4 sm:p-5 rounded-2xl border border-neutral-200 bg-neutral-50/60 hover:bg-neutral-50 transition flex flex-wrap items-center justify-between gap-4">
+                      <div className="space-y-1 max-w-xl">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="w-4 h-4 text-[#991b1b] shrink-0" />
+                          <strong className="text-sm font-bold text-neutral-900">{doc.name}</strong>
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase ${
+                            isCompleted
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-amber-50 text-amber-800 border-amber-200'
+                          }`}>
+                            {isCompleted ? '✓ Completed' : 'Action Required'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-neutral-500 pl-6">
+                          {doc.followUpAction || 'Official statutory authorization document for New York Department of Health compliance.'}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <button
+                          onClick={() => setViewingDoc(doc)}
+                          className="bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 font-bold text-xs px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-neutral-600" />
+                          <span>View Document</span>
+                        </button>
+
+                        {!isCompleted ? (
+                          <button
+                            onClick={() => {
+                              setSigningDoc(doc);
+                              setTypedSignName(activeCase.informant.fullName || '');
+                              setIsAgreedTerms(false);
+                            }}
+                            className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                          >
+                            <PenTool className="w-3.5 h-3.5 text-amber-300" />
+                            <span>Sign Document</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setViewingDoc(doc)}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Executed Certificate</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {/* TAB 4: MEMORIAL MEDIA & 360° DIGI-TRIBUTE PHOTO STUDIO & FUNERAL ANNOUNCEMENT STUDIO */}
         {portalTab === 'photos' && (
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="space-y-6 animate-fadeIn">
+            {/* Top Navigation */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setPortalTab('home')}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 rounded-xl font-bold text-xs transition border border-neutral-300 shadow-xs group cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-[#991b1b] group-hover:-translate-x-0.5 transition-transform" />
+                <span>← Back to Welcome Page</span>
+              </button>
+              <div className="text-xs text-neutral-500 font-mono">
+                Case #{activeCase.caseNumber} • Memorial Media & Digital Announcement Studio
+              </div>
+            </div>
+
+            <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
             
             {/* Studio Header */}
             <div className="flex flex-wrap justify-between items-center border-b border-neutral-200 pb-4 gap-4">
@@ -2954,7 +2900,8 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
             )}
 
           </div>
-        )}
+        </div>
+      )}
 
         {/* MODAL: UPLOAD NEW MEMORIAL PHOTO */}
         {isPhotoUploadModalOpen && (
@@ -3168,642 +3115,6 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
           </div>
         )}
 
-        {/* TAB 5: SERVICE & LIVERY STATUS & CORTEGE ROUTE MANAGEMENT */}
-        {portalTab === 'status' && (
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
-            
-            {/* Header */}
-            <div className="flex flex-wrap justify-between items-center border-b border-neutral-200 pb-4 gap-4">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <Car className="w-5 h-5 text-[#991b1b]" />
-                  <h3 className="font-serif-title text-xl font-bold text-neutral-900">
-                    Real-Time Custody & Livery Fleet Status
-                  </h3>
-                </div>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Live updates on physical care at 630 St. Nicholas Ave, limousine cortege routing, and family pick-up/drop-off logistics.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold px-3 py-1.5 rounded-full flex items-center space-x-1.5">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Safe Arrival Confirmed</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Quick 3-Card Custodial & Facility Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Custodial Status</span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                </div>
-                <div className="font-bold text-neutral-900 text-sm">In Restorative Care</div>
-                <div className="text-[11px] text-[#991b1b] font-medium">630 St. Nicholas Ave Preparation Suite</div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Livery Fleet Allocation</span>
-                  <Car className="w-3.5 h-3.5 text-[#b45309]" />
-                </div>
-                <div className="font-bold text-neutral-900 text-sm">1x Lead Hearse + 2x 8-Seater Limousines</div>
-                <div className="text-[11px] text-neutral-600">Total Capacity: 16 Passenger Seats</div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Chapel Sanctuary</span>
-                  <Building2 className="w-3.5 h-3.5 text-emerald-700" />
-                </div>
-                <div className="font-bold text-neutral-900 text-sm">{activeCase.serviceSelections.viewingParlor}</div>
-                <div className="text-[11px] text-emerald-700 font-medium">Reserved & Sanitized</div>
-              </div>
-            </div>
-
-            {/* PROMINENT 10-HOUR CORTEGE MODIFICATION POLICY NOTICE */}
-            <div className="bg-gradient-to-r from-amber-50 via-amber-100/50 to-amber-50 border-2 border-[#b45309]/50 rounded-2xl p-5 space-y-3 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start space-x-3">
-                  <div className="p-2 bg-[#b45309] text-white rounded-xl shrink-0 mt-0.5 sm:mt-0">
-                    <Clock className="w-5 h-5 text-amber-200" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-neutral-900 flex items-center gap-2">
-                      <span>10-Hour Prior Cortege Modification & Confirmation Policy</span>
-                      <span className="text-[10px] bg-[#b45309] text-white font-mono px-2 py-0.5 rounded font-bold uppercase">
-                        NYS / NYPD Rule
-                      </span>
-                    </h4>
-                    <p className="text-xs text-neutral-700 font-light mt-0.5 leading-relaxed">
-                      In accordance with <strong>NYPD 32nd Precinct Motorcade Escort Command</strong> and Harlem transportation dispatch protocols, family pick-up locations, drop-off destinations, passenger counts, and scheduled timings <strong>may be entered, viewed, confirmed, or adjusted up to 10 hours prior to the scheduled service time</strong>. Within 10 hours of cortege departure, all routes and vehicle rosters are strictly locked for motorcade security and on-time procession.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Simulation Toggle Switch for Testing Both Policy States */}
-                <div className="shrink-0 pt-2 sm:pt-0">
-                  <button
-                    onClick={() => setSimulateUnder10hLock(!simulateUnder10hLock)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border shadow-xs ${
-                      simulateUnder10hLock
-                        ? 'bg-red-50 text-[#991b1b] border-red-300 hover:bg-red-100'
-                        : 'bg-white text-neutral-800 border-neutral-300 hover:bg-neutral-50'
-                    }`}
-                    title="Toggle test simulation of 10-Hour lockout condition"
-                  >
-                    {simulateUnder10hLock ? (
-                      <>
-                        <Lock className="w-3.5 h-3.5 text-[#991b1b]" />
-                        <span>Simulating: &lt;10h Cutoff (Locked)</span>
-                      </>
-                    ) : (
-                      <>
-                        <Unlock className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Simulate &lt;10h Lockout Rule</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Dynamic Live Lockout Status Bar */}
-              <div className="pt-2 border-t border-amber-300/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center space-x-2">
-                  {isCortegeLocked ? (
-                    <span className="flex items-center space-x-1.5 text-red-700 font-bold bg-red-100/90 px-3 py-1 rounded-lg border border-red-200">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Modification Window: LOCKED (Within 10-Hour Service Cutoff)</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center space-x-1.5 text-emerald-900 font-bold bg-emerald-100/90 px-3 py-1 rounded-lg border border-emerald-300">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Modification Window: OPEN (68 Hours Remaining before 10h Lockout) — Changes Permitted</span>
-                    </span>
-                  )}
-                </div>
-
-                <span className="text-[11px] text-neutral-600 font-medium">
-                  Service Scheduled: <strong>{cortegeRoute.serviceDateTime}</strong>
-                </span>
-              </div>
-            </div>
-
-            {/* CONFIRMATION STATUS RIBBON */}
-            <div className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
-              cortegeRoute.isConfirmedByFamily
-                ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
-                : 'bg-amber-50/80 border-amber-300 text-amber-950'
-            }`}>
-              <div className="flex items-center space-x-3">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-white shrink-0 ${
-                  cortegeRoute.isConfirmedByFamily ? 'bg-emerald-600' : 'bg-[#b45309]'
-                }`}>
-                  {cortegeRoute.isConfirmedByFamily ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                </div>
-                <div>
-                  <div className="font-bold text-xs">
-                    {cortegeRoute.isConfirmedByFamily ? (
-                      <span>Cortege Route & Pick-up Details Confirmed by {cortegeRoute.confirmedBy || activeCase.informant.fullName}</span>
-                    ) : (
-                      <span>Route Confirmation Pending Family Verification</span>
-                    )}
-                  </div>
-                  <div className="text-[11px] opacity-80 font-light">
-                    {cortegeRoute.isConfirmedByFamily ? (
-                      <span>Confirmed on {cortegeRoute.confirmedAt || 'Recently'}. Transmitted to lead hearse driver & escort dispatcher.</span>
-                    ) : (
-                      <span>Please review the pick-up location, drop-off destination, and passenger count below.</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons Toolbar */}
-              <div className="flex flex-wrap items-center gap-2">
-                {!isEditingRoute ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (isCortegeLocked) {
-                          showToast('🔒 Route modifications are locked within 10 hours of service. Call Director at (212) 281-8850 for emergency assistance.');
-                          return;
-                        }
-                        setIsEditingRoute(true);
-                      }}
-                      disabled={isCortegeLocked}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-xs ${
-                        isCortegeLocked
-                          ? 'bg-neutral-200 text-neutral-400 border border-neutral-300 cursor-not-allowed'
-                          : 'bg-white hover:bg-neutral-100 text-neutral-900 border border-neutral-300'
-                      }`}
-                      title={isCortegeLocked ? 'Locked within 10 hours of service' : 'Edit pick-up and drop-off locations'}
-                    >
-                      {isCortegeLocked ? <Lock className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5 text-[#991b1b]" />}
-                      <span>{isCortegeLocked ? 'Route Locked (<10h)' : '✏️ Modify Route & Locations'}</span>
-                    </button>
-
-                    {!cortegeRoute.isConfirmedByFamily && (
-                      <button
-                        onClick={handleQuickConfirmRoute}
-                        className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-sm"
-                      >
-                        <Check className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Confirm Route & Timings</span>
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => window.print()}
-                      className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center space-x-1.5 border border-neutral-300"
-                      title="Print cortege route itinerary"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Print Route</span>
-                    </button>
-
-                    <button
-                      onClick={handleSendItinerarySMS}
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center space-x-1.5 border border-blue-200"
-                      title="Send cortege itinerary to family by SMS"
-                    >
-                      <Smartphone className="w-3.5 h-3.5 text-blue-700" />
-                      <span className="hidden sm:inline">SMS to Family</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setIsEditingRoute(false)}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-300 transition"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveRoute}
-                      className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-md shadow-red-950/20"
-                    >
-                      <Check className="w-3.5 h-3.5 text-amber-300" />
-                      <span>Save & Confirm Route</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* EDIT MODE FORM (WHEN USER CLICKS "MODIFY ROUTE & LOCATIONS") */}
-            {isEditingRoute && (
-              <div className="bg-gradient-to-b from-neutral-50 to-white border-2 border-[#991b1b]/40 rounded-2xl p-6 space-y-6 shadow-sm animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
-                  <div className="flex items-center space-x-2">
-                    <Edit3 className="w-4 h-4 text-[#991b1b]" />
-                    <h4 className="font-bold text-sm text-neutral-900">
-                      Edit Family Pick-up & Drop-off Route Details
-                    </h4>
-                  </div>
-                  <span className="text-[11px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-medium">
-                    Changes permitted up to 10h prior to service
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
-                  {/* Left Column: Stage 1 Pick-up Details */}
-                  <div className="space-y-4 bg-white p-5 rounded-xl border border-neutral-200">
-                    <div className="flex items-center space-x-2 border-b border-neutral-100 pb-2">
-                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-xs font-bold">
-                        1
-                      </div>
-                      <h5 className="font-bold text-xs text-neutral-900">Stage 1: Family Pick-up Location</h5>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 block mb-1">Pick-up Location Label:</label>
-                        <input
-                          type="text"
-                          value={formPickupName}
-                          onChange={(e) => setFormPickupName(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          placeholder="e.g. Vance Family Residence"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 block mb-1">Pick-up Full Street Address:</label>
-                        <input
-                          type="text"
-                          value={formPickupAddress}
-                          onChange={(e) => setFormPickupAddress(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          placeholder="e.g. 409 Edgecombe Ave, New York, NY 10032"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 block mb-1">Floor / Apartment / Access:</label>
-                          <input
-                            type="text"
-                            value={formPickupFloorApt}
-                            onChange={(e) => setFormPickupFloorApt(e.target.value)}
-                            className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                            placeholder="e.g. Apt 6B (Rear ramp)"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 block mb-1">Scheduled Pick-up Time:</label>
-                          <input
-                            type="text"
-                            value={formPickupTime}
-                            onChange={(e) => setFormPickupTime(e.target.value)}
-                            className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                            placeholder="e.g. 09:30 AM"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 block mb-1">On-Site Family Contact:</label>
-                          <input
-                            type="text"
-                            value={formPickupContact}
-                            onChange={(e) => setFormPickupContact(e.target.value)}
-                            className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 block mb-1">Contact Mobile Phone:</label>
-                          <input
-                            type="text"
-                            value={formPickupPhone}
-                            onChange={(e) => setFormPickupPhone(e.target.value)}
-                            className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 block mb-1">Special Assistance / Accessibility Notes:</label>
-                        <textarea
-                          rows={2}
-                          value={formPickupInstructions}
-                          onChange={(e) => setFormPickupInstructions(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white resize-none"
-                          placeholder="e.g. Elder family member requires low-step entry; 2 floral sprays to be transported."
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Stage 3 Drop-off & Return Details */}
-                  <div className="space-y-4 bg-white p-5 rounded-xl border border-neutral-200">
-                    <div className="flex items-center space-x-2 border-b border-neutral-100 pb-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-bold">
-                        3
-                      </div>
-                      <h5 className="font-bold text-xs text-neutral-900">Stage 3 & 4: Drop-off Destination & Repast</h5>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 block mb-1">Final Drop-off Destination Name:</label>
-                        <input
-                          type="text"
-                          value={formDropoffName}
-                          onChange={(e) => setFormDropoffName(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          placeholder="e.g. Woodlawn Cemetery & Crematory"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 block mb-1">Destination Full Street Address:</label>
-                        <input
-                          type="text"
-                          value={formDropoffAddress}
-                          onChange={(e) => setFormDropoffAddress(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          placeholder="e.g. 4199 Webster Ave, Bronx, NY 10470"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 block mb-1">Estimated Committal Time:</label>
-                          <input
-                            type="text"
-                            value={formDropoffTime}
-                            onChange={(e) => setFormDropoffTime(e.target.value)}
-                            className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-bold text-neutral-700 block mb-1">Total Family Passengers:</label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={20}
-                            value={formPassengers}
-                            onChange={(e) => setFormPassengers(parseInt(e.target.value) || 1)}
-                            className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold text-neutral-700 block mb-1">Drop-off Processional Instructions:</label>
-                        <input
-                          type="text"
-                          value={formDropoffInstructions}
-                          onChange={(e) => setFormDropoffInstructions(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                          placeholder="e.g. Assemble at Woolworth Gatehouse for witness committal."
-                        />
-                      </div>
-
-                      <div className="pt-2 border-t border-neutral-100">
-                        <label className="flex items-center space-x-2 text-xs font-bold text-neutral-800 cursor-pointer mb-2">
-                          <input
-                            type="checkbox"
-                            checked={formReturnRequired}
-                            onChange={(e) => setFormReturnRequired(e.target.checked)}
-                            className="accent-[#991b1b] rounded"
-                          />
-                          <span>Return Transport to Repast Gathering Required</span>
-                        </label>
-
-                        {formReturnRequired && (
-                          <div>
-                            <input
-                              type="text"
-                              value={formReturnAddress}
-                              onChange={(e) => setFormReturnAddress(e.target.value)}
-                              className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg font-medium focus:ring-2 focus:ring-[#991b1b] focus:bg-white"
-                              placeholder="e.g. Return to 409 Edgecombe Ave & Repast Hall"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Form Footer Action */}
-                <div className="flex justify-end items-center space-x-3 pt-3 border-t border-neutral-200">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingRoute(false)}
-                    className="px-4 py-2 text-xs font-bold text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveRoute}
-                    className="px-5 py-2.5 text-xs font-bold text-white bg-[#991b1b] hover:bg-red-800 rounded-xl transition shadow-md shadow-red-950/20 flex items-center space-x-2"
-                  >
-                    <Check className="w-4 h-4 text-amber-300" />
-                    <span>Save & Lock Cortege Route</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* VISUAL 4-STAGE CORTEGE ROUTE ROADMAP (VIEW MODE) */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
-                <h4 className="font-bold text-sm text-neutral-900 flex items-center space-x-2">
-                  <Navigation className="w-4 h-4 text-[#991b1b]" />
-                  <span>Dignified Motorcade & Cortege Itinerary</span>
-                </h4>
-                <span className="text-xs text-neutral-500 font-mono">
-                  {cortegeRoute.totalPassengers} Passengers • 3 Escorted Vehicles
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                
-                {/* Stage 1: Family Pick-up */}
-                <div className="bg-neutral-50 rounded-2xl p-4 border border-blue-200/80 space-y-2 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 inset-x-0 h-1 bg-blue-500" />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono">
-                        Stage 1: Pick-up
-                      </span>
-                      <span className="text-xs font-bold text-blue-900 font-mono">
-                        {cortegeRoute.pickupTime}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h5 className="font-bold text-neutral-900 text-xs">
-                        {cortegeRoute.pickupLocationName}
-                      </h5>
-                      <p className="text-[11px] text-neutral-600 mt-0.5">
-                        {cortegeRoute.pickupAddress}
-                      </p>
-                      {cortegeRoute.pickupFloorApt && (
-                        <p className="text-[10px] text-neutral-500 italic mt-0.5">
-                          {cortegeRoute.pickupFloorApt}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-200/60 text-[10px] space-y-1">
-                    <div className="text-neutral-700 font-medium">
-                      Contact: <strong>{cortegeRoute.pickupContactName}</strong> ({cortegeRoute.pickupContactPhone})
-                    </div>
-                    {cortegeRoute.pickupSpecialInstructions && (
-                      <div className="text-blue-950 bg-blue-50/80 p-1.5 rounded border border-blue-200 font-light">
-                        {cortegeRoute.pickupSpecialInstructions}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stage 2: Sanctuary / Chapel */}
-                <div className="bg-neutral-50 rounded-2xl p-4 border border-red-200/80 space-y-2 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 inset-x-0 h-1 bg-[#991b1b]" />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-[#991b1b] px-2 py-0.5 rounded font-mono">
-                        Stage 2: Sanctuary
-                      </span>
-                      <span className="text-xs font-bold text-[#991b1b] font-mono">
-                        {cortegeRoute.serviceTime}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h5 className="font-bold text-neutral-900 text-xs">
-                        {cortegeRoute.serviceVenueName}
-                      </h5>
-                      <p className="text-[11px] text-neutral-600 mt-0.5">
-                        {cortegeRoute.serviceVenueAddress}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-200/60 text-[10px] space-y-1 text-neutral-600">
-                    <div>Sanctuary order of service, 4K Webcast, and family seating procession.</div>
-                  </div>
-                </div>
-
-                {/* Stage 3: Drop-off Destination */}
-                <div className="bg-neutral-50 rounded-2xl p-4 border border-emerald-200/80 space-y-2 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 inset-x-0 h-1 bg-emerald-500" />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono">
-                        Stage 3: Drop-off
-                      </span>
-                      <span className="text-xs font-bold text-emerald-900 font-mono">
-                        {cortegeRoute.dropoffTime || '01:30 PM'}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h5 className="font-bold text-neutral-900 text-xs">
-                        {cortegeRoute.dropoffLocationName}
-                      </h5>
-                      <p className="text-[11px] text-neutral-600 mt-0.5">
-                        {cortegeRoute.dropoffAddress}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-200/60 text-[10px] space-y-1">
-                    {cortegeRoute.dropoffSpecialInstructions && (
-                      <div className="text-emerald-950 bg-emerald-50/80 p-1.5 rounded border border-emerald-200 font-light">
-                        {cortegeRoute.dropoffSpecialInstructions}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stage 4: Return & Repast */}
-                <div className="bg-neutral-50 rounded-2xl p-4 border border-amber-200/80 space-y-2 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 inset-x-0 h-1 bg-[#b45309]" />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-[#b45309] px-2 py-0.5 rounded font-mono">
-                        Stage 4: Repast
-                      </span>
-                      <span className="text-xs font-bold text-[#b45309] font-mono">
-                        Return Trip
-                      </span>
-                    </div>
-
-                    <div>
-                      <h5 className="font-bold text-neutral-900 text-xs">
-                        {cortegeRoute.returnLocationName || 'Family Residence & Repast Gathering'}
-                      </h5>
-                      <p className="text-[11px] text-neutral-600 mt-0.5">
-                        {cortegeRoute.returnAddress || cortegeRoute.pickupAddress}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-200/60 text-[10px] space-y-1 text-neutral-600">
-                    <div>Return transport for immediate family cortege following committal.</div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* FLEET VEHICLE ALLOCATION & ESCORT ROSTER */}
-            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 space-y-3">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
-                <span className="font-bold text-xs text-neutral-900 uppercase tracking-wider flex items-center space-x-1.5">
-                  <Car className="w-4 h-4 text-[#991b1b]" />
-                  <span>Assigned Cortege Vehicle Lineup & Chauffeur Roster</span>
-                </span>
-                <span className="text-[11px] text-neutral-500">NYPD 32nd Pct Motorcade Escort</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                {cortegeRoute.vehiclesAllocated.map((veh, idx) => (
-                  <div key={idx} className="bg-white p-3.5 rounded-xl border border-neutral-200 space-y-1.5 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 font-mono">
-                        Vehicle {idx + 1}
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-[#991b1b] bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                        {veh.plateNumber || 'BFH-FLEET'}
-                      </span>
-                    </div>
-                    <div className="font-bold text-xs text-neutral-900 leading-tight">
-                      {veh.quantity}x {veh.vehicleType}
-                    </div>
-                    <div className="text-[11px] text-neutral-600 flex items-center space-x-1">
-                      <User className="w-3 h-3 text-neutral-400" />
-                      <span>Chauffeur: {veh.assignedDriver || 'Assigned BFH Driver'}</span>
-                    </div>
-                    {veh.driverPhone && (
-                      <div className="text-[10px] text-neutral-500 font-mono">
-                        Direct: {veh.driverPhone}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-
       </main>
 
       {/* Floating Toast Alert */}
@@ -3843,6 +3154,349 @@ ${obitState.serviceDetails} ${obitState.memorialDonations}`;
             <div className="text-[9px] text-neutral-300">VA Benefits • Law • Immediate Care</div>
           </div>
         </button>
+      )}
+
+
+      {/* MODAL: OFFICIAL STATUTORY DOCUMENT VIEWER */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-neutral-300 max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-neutral-200 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-red-50 text-[#991b1b] flex items-center justify-center font-bold">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif-title text-xl font-bold text-neutral-900">
+                    {viewingDoc.name}
+                  </h3>
+                  <p className="text-xs text-neutral-500">
+                    New York State DOH Statutory Authorization Record • Case #{activeCase.caseNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="p-2 rounded-full hover:bg-neutral-100 text-neutral-500 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Document Sheet Container */}
+            <div className="border-2 border-neutral-300 bg-[#fdfbf7] rounded-2xl p-6 sm:p-8 space-y-5 text-xs text-neutral-800 shadow-inner font-sans">
+              {/* Masthead */}
+              <div className="text-center border-b border-neutral-300 pb-4 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#991b1b]">
+                  State of New York • Department of Health Bureau of Funeral Directing
+                </div>
+                <h4 className="font-serif-title text-lg font-bold text-neutral-900">
+                  BENTA'S FUNERAL HOME, INC.
+                </h4>
+                <div className="text-[11px] text-neutral-600">
+                  630 Saint Nicholas Avenue, New York, NY 10030 • (212) 281-8850 • Firm Reg. #08850
+                </div>
+                <div className="text-[10px] font-mono text-neutral-500 font-bold uppercase">
+                  Statutory Compliance Section: NY PHL § 4201 & 10 NYCRR § 77.7
+                </div>
+              </div>
+
+              {/* Subject & Informant Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-neutral-200 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">Name of Decedent:</span>
+                  <span className="font-bold text-neutral-900 text-sm">{activeCase.decedent.legalName}</span>
+                  <div className="text-[11px] text-neutral-500 font-mono mt-0.5">
+                    DOB: {activeCase.decedent.dateOfBirth} • DOD: {activeCase.decedent.dateOfDeath}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-neutral-500 block">Authorized Informant / Next of Kin:</span>
+                  <span className="font-bold text-neutral-900 text-sm">{activeCase.informant.fullName}</span>
+                  <div className="text-[11px] text-neutral-500 mt-0.5">
+                    Relationship: {activeCase.informant.relationship} • Phone: {activeCase.informant.phone}
+                  </div>
+                </div>
+              </div>
+
+              {/* Legal Text Clauses */}
+              <div className="space-y-3 bg-white p-5 rounded-xl border border-neutral-200 leading-relaxed text-[11px] text-neutral-700">
+                <p>
+                  <strong>1. Grant of Authority & Custody:</strong> The undersigned hereby authorizes Benta's Funeral Home, Inc. and its designated licensed funeral directors to take custody of, care for, and prepare the remains of the above-named decedent in accordance with selected arrangements and New York State Public Health Law § 4201.
+                </p>
+                <p>
+                  <strong>2. Restorative Sanitation & Embalming:</strong> In accordance with 10 NYCRR § 77.7, authorization is granted to perform customary professional sanitation, restorative preparation, dressing, and casket placement for private family visitation and sanctuary viewing.
+                </p>
+                <p>
+                  <strong>3. Vital Records & EDRS Registration:</strong> Authority is granted to complete and certify the electronic death certificate via the New York State Department of Health EDRS registry and obtain certified disposition transit permits.
+                </p>
+                <p>
+                  <strong>4. Legal Representation:</strong> The undersigned affirms that they possess legal priority under NY PHL § 4201(2) as designated Next of Kin / Agent and indemnifies Benta's Funeral Home, Inc. against third-party claims.
+                </p>
+              </div>
+
+              {/* Signature / Execution Block */}
+              {viewingDoc.status === 'completed' || viewingDoc.status === 'signed' || viewingDoc.status === 'approved' ? (
+                <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                      ✓
+                    </div>
+                    <div>
+                      <div className="font-bold text-emerald-950 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>Digitally Executed & Stamped</span>
+                      </div>
+                      <div className="text-[11px] text-emerald-800">
+                        Signed by: <strong>{(viewingDoc as any).signedBy || activeCase.informant.fullName}</strong> on <strong>{(viewingDoc as any).signDate || '2026-09-20'}</strong>
+                      </div>
+                      <div className="text-[10px] font-mono text-emerald-700">
+                        Certificate ID: NY-DOH-AUTH-{viewingDoc.id}-2026 • Verified
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      showToast('Downloading verified executed PDF certificate...');
+                    }}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div>
+                    <div className="font-bold text-amber-950">Action Required: Awaiting Next of Kin Signature</div>
+                    <div className="text-[11px] text-amber-800">
+                      This statutory authorization has not yet been executed. Please launch the signature pad below.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const docToSign = viewingDoc;
+                      setViewingDoc(null);
+                      setSigningDoc(docToSign);
+                      setTypedSignName(activeCase.informant.fullName || '');
+                      setIsAgreedTerms(false);
+                    }}
+                    className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-md shadow-red-950/20 cursor-pointer"
+                  >
+                    <PenTool className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Proceed to Sign</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-between items-center pt-2">
+              <button
+                onClick={() => window.print()}
+                className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-4 py-2 rounded-xl transition flex items-center space-x-1.5 border border-neutral-300 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Document</span>
+              </button>
+
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs px-5 py-2 rounded-xl transition cursor-pointer"
+              >
+                Close Viewer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INTERACTIVE CANVAS & TYPED E-SIGNATURE PAD */}
+      {signingDoc && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border-2 border-amber-500 max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-neutral-200 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-red-50 text-[#991b1b] flex items-center justify-center font-bold">
+                  <PenTool className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif-title text-xl font-bold text-neutral-900">
+                    Sign: {signingDoc.name}
+                  </h3>
+                  <p className="text-xs text-neutral-500">
+                    New York Electronic Signatures and Records Act (ESRA) Compliant
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSigningDoc(null)}
+                className="p-2 rounded-full hover:bg-neutral-100 text-neutral-500 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Informant Details & Document Subject */}
+            <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-2xl text-xs space-y-2">
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <span className="text-neutral-500">Decedent:</span>{' '}
+                  <strong className="text-neutral-900">{activeCase.decedent.legalName}</strong>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Case Number:</span>{' '}
+                  <strong className="text-neutral-900 font-mono">{activeCase.caseNumber}</strong>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Next of Kin / Signer:</span>{' '}
+                  <strong className="text-neutral-900">{activeCase.informant.fullName}</strong>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Legal Relationship:</span>{' '}
+                  <strong className="text-neutral-900">{activeCase.informant.relationship}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-neutral-800 block">Choose Signature Method:</label>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSignatureMode('type')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    signatureMode === 'type'
+                      ? 'bg-[#991b1b] text-white shadow-sm'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Type Legal Signature</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSignatureMode('draw')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    signatureMode === 'draw'
+                      ? 'bg-[#991b1b] text-white shadow-sm'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  }`}
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Draw with Mouse / Finger</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Signature Area */}
+            {signatureMode === 'type' ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-neutral-800">Legal Name as it Appears on Government ID:</label>
+                  <input
+                    type="text"
+                    value={typedSignName}
+                    onChange={(e) => setTypedSignName(e.target.value)}
+                    placeholder="e.g. Eleanor Vance"
+                    className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-[#991b1b] focus:outline-hidden"
+                  />
+                </div>
+                {/* Cursive Signature Preview */}
+                <div className="border-2 border-dashed border-amber-400 bg-amber-50/40 rounded-2xl p-6 text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 block mb-2">
+                    Digital Signature Preview
+                  </span>
+                  <div className="font-serif italic text-3xl sm:text-4xl text-[#1a1815] py-2">
+                    {typedSignName || 'Signer Name'}
+                  </div>
+                  <div className="text-[10px] text-neutral-500 font-mono mt-2">
+                    Verified Digital Hash: SHA256-{(typedSignName.length * 9482 + 10482).toString(16).toUpperCase()} • Date: {signDate}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-neutral-800">Draw Signature Inside Box:</label>
+                  <button
+                    type="button"
+                    onClick={clearCanvas}
+                    className="text-xs text-[#991b1b] font-bold hover:underline cursor-pointer"
+                  >
+                    Clear Signature
+                  </button>
+                </div>
+                <div className="border-2 border-neutral-400 rounded-2xl overflow-hidden bg-white shadow-inner">
+                  <canvas
+                    ref={canvasRef}
+                    width={550}
+                    height={160}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    className="w-full h-40 cursor-crosshair touch-none bg-white"
+                  />
+                </div>
+                <div className="text-[10px] text-neutral-400 text-center">
+                  Use your mouse, trackpad, or finger to draw your signature above.
+                </div>
+              </div>
+            )}
+
+            {/* Date of Signature */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-neutral-800">Date of Execution:</label>
+              <input
+                type="date"
+                value={signDate}
+                onChange={(e) => setSignDate(e.target.value)}
+                className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-[#991b1b] focus:outline-hidden"
+              />
+            </div>
+
+            {/* Statutory Checkbox */}
+            <label className="flex items-start space-x-3 p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAgreedTerms}
+                onChange={(e) => setIsAgreedTerms(e.target.checked)}
+                className="mt-0.5 rounded-md text-[#991b1b] focus:ring-[#991b1b] w-4 h-4"
+              />
+              <span className="text-xs text-neutral-700 leading-relaxed">
+                I, <strong>{activeCase.informant.fullName}</strong>, hereby affirm and certify under penalty of perjury under New York State Law that I have full legal authority as Next of Kin / Authorized Agent pursuant to NY PHL § 4201 to execute <strong>{signingDoc.name}</strong> for the arrangements of <strong>{activeCase.decedent.legalName}</strong>.
+              </span>
+            </label>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSigningDoc(null)}
+                className="px-4 py-2.5 text-xs font-bold text-neutral-600 hover:text-neutral-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExecuteSigning(signingDoc)}
+                disabled={isSigningSubmitting}
+                className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition flex items-center space-x-2 shadow-md shadow-red-950/20 cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4 text-amber-300" />
+                <span>{isSigningSubmitting ? 'Stamping & Finalizing...' : 'Adopt & Sign Document'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL 1: 4-UP PRINTABLE MEMORIAL QR KEEPSAKE CARDS */}

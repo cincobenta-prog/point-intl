@@ -22,11 +22,13 @@ import {
   ArrowRight,
   Play,
   Pause,
-  Printer
+  Printer,
+  ArrowLeft
 } from 'lucide-react';
 
 interface DigitalTributeStudioViewProps {
   activeCase: GoldenRecordCase;
+  onBackToWelcome?: () => void;
   onUpdateCase?: (updatedCase: GoldenRecordCase) => void;
   onSendNotification?: (notif: SimulatedNotification) => void;
   onOpenFamilyProofApproval?: () => void;
@@ -35,6 +37,7 @@ interface DigitalTributeStudioViewProps {
 
 export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> = ({
   activeCase,
+  onBackToWelcome,
   onUpdateCase,
   onSendNotification,
   onOpenFamilyProofApproval: _onOpenFamilyProofApproval,
@@ -319,17 +322,37 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
       )}
 
       {/* TOP SITE HEADER */}
-      <header className="bg-[#faf7f2]/95 backdrop-blur-md border-b border-[#ece5d8] sticky top-0 z-40 -mt-4 -mx-4 sm:-mx-6 lg:-mx-8 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div className="flex items-center justify-between mb-4">
+        {onBackToWelcome && (
+          <button
+            onClick={onBackToWelcome}
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 rounded-xl font-bold text-xs transition border border-[#e6dac1] shadow-xs group cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#af893e] group-hover:-translate-x-0.5 transition-transform" />
+            <span>← Back to Welcome Page</span>
+          </button>
+        )}
+        <div className="text-xs text-[#8c8273] font-medium hidden sm:block italic">
+          "Preserving our community's legacy" • Family Legacy Archived at Benta's Funeral Home and the Schaumburg Research Library
+        </div>
+      </div>
+
+      <header className="bg-[#faf7f2]/95 backdrop-blur-md border border-[#ece5d8] rounded-3xl sticky top-0 z-40 px-6 py-4 flex flex-wrap items-center justify-between gap-4 mb-8 shadow-xs">
         
         {/* Brand Group */}
-        <div className="flex items-center gap-3">
-          <span className="text-2xl text-[#af893e]">🕊️</span>
-          <span className="font-serif font-bold text-2xl tracking-wide text-[#191714]">
-            Digital Tribute
-          </span>
-          <span className="text-[11px] font-bold uppercase tracking-widest bg-[#f5eedf] text-[#af893e] border border-[#e6dac1] px-2.5 py-0.5 rounded-full">
-            V2.0 COFFEE TABLE EDITION
-          </span>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl text-[#af893e]">🕊️</span>
+            <span className="font-serif font-bold text-2xl tracking-wide text-[#191714]">
+              Digital Tribute
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest bg-[#f5eedf] text-[#af893e] border border-[#e6dac1] px-2.5 py-0.5 rounded-full">
+              Living Audio & Heirloom Archive
+            </span>
+          </div>
+          <div className="text-[11px] text-[#7a6f60] font-serif italic">
+            "Preserving our community's legacy" Family Legacy Archived at Benta's Funeral Home and the Schaumburg Research Library
+          </div>
         </div>
 
         {/* Navigation Tabs (Pill Segmented Bar) */}
@@ -338,7 +361,7 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
             onClick={() => setActiveTab('guest')}
             className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'guest'
-                ? 'bg-white text-[#af893e] shadow-xs'
+                ? 'bg-white text-[#af893e] shadow-xs font-bold'
                 : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
@@ -349,7 +372,7 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
             onClick={() => setActiveTab('document')}
             className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'document'
-                ? 'bg-white text-[#af893e] shadow-xs'
+                ? 'bg-white text-[#af893e] shadow-xs font-bold'
                 : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
@@ -360,7 +383,7 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
             onClick={() => setActiveTab('admin')}
             className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'admin'
-                ? 'bg-white text-[#af893e] shadow-xs'
+                ? 'bg-white text-[#af893e] shadow-xs font-bold'
                 : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
@@ -376,7 +399,7 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
             onClick={() => setActiveTab('cloud')}
             className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'cloud'
-                ? 'bg-white text-[#af893e] shadow-xs'
+                ? 'bg-white text-[#af893e] shadow-xs font-bold'
                 : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
@@ -398,6 +421,9 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
             </h2>
             <p className="text-[#69635b] text-sm sm:text-base max-w-xl mx-auto font-normal">
               Select your connection to uncover paired reflection questions that celebrate their life through joy, pain, sacrifice, and action.
+            </p>
+            <p className="text-xs text-[#8c8273] font-serif italic pt-1">
+              "Preserving our community's legacy" • Family Legacy Archived at Benta's Funeral Home and the Schaumburg Research Library
             </p>
           </div>
 
