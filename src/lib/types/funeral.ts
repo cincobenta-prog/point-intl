@@ -339,6 +339,7 @@ export interface GoldenRecordCase {
   cortegeRoute?: LiveryCortegeRoute;
   funeralAnnouncement?: FuneralAnnouncementData;
   statementOfGoods?: StatementOfGoodsData;
+  contractRevisions?: ContractRevisionArchiveRecord[];
   clothingSubmittal?: ClothingChecklistData;
   familySplitPayConfig?: FamilySplitPayConfig;
   vipItinerary?: DayOfServiceVIPItinerary;
@@ -1350,6 +1351,38 @@ export interface PassThroughPayableCheck {
   notes?: string;
 }
 
+export interface ContractAdjustmentDiff {
+  id: string;
+  category: 'Livery' | 'Merchandise' | 'Florals' | 'Stationery' | 'Facilities' | 'Cash Advances' | 'General';
+  itemDescription: string;
+  fieldChanged: string; // e.g. 'Count / Qty', 'Unit Rate', 'Line Added', 'Line Removed'
+  oldValue: string | number;
+  newValue: string | number;
+  deltaAmount: number;
+}
+
+export interface ContractRevisionArchiveRecord {
+  id: string; // e.g. "REV-2026-0968-01"
+  revisionNumber: number; // 1, 2, 3...
+  versionLabel: string; // e.g. "v1.0 (Original Baseline Contract)", "v1.1 (Livery & Programs Adjustment)"
+  savedAt: string; // ISO date
+  savedAtFormatted: string; // e.g. "Oct 2, 2026 • 6:15 PM"
+  savedByDirector: {
+    id: string;
+    name: string;
+    licenseNumber: string;
+    role: string;
+  };
+  reasonNotes?: string;
+  informantApprovalName?: string;
+  previousGrandTotal: number;
+  newGrandTotal: number;
+  netAdjustmentAmount: number;
+  adjustmentsSummary: ContractAdjustmentDiff[];
+  snapshotStatement: StatementOfGoodsData;
+  isBaselineOriginal?: boolean;
+}
+
 export interface StatementOfGoodsData {
   id: string;
   caseId: string;
@@ -1364,6 +1397,7 @@ export interface StatementOfGoodsData {
   sectionIII: StatementOfGoodsSectionIII;
   sectionIV: StatementOfGoodsSectionIV;
   cashAdvanceChecks?: PassThroughPayableCheck[];
+  contractRevisions?: ContractRevisionArchiveRecord[];
 }
 
 // ==========================================

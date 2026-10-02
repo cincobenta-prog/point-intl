@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Benta's Funeral Home OS - Staff Operational Guide & User Manual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #991b1b;
+      --primary-dark: #7f1d1d;
+      --gold: #d97706;
+      --gold-light: #fef3c7;
+      --slate-900: #0f172a;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-100: #f1f5f9;
+      --slate-50: #f8fafc;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background-color: #f8fafc;
+      padding: 0;
+    }
+
+    .header-banner {
+      background: linear-gradient(135deg, #450a0a 0%, #7f1d1d 50%, #991b1b 100%);
+      color: #ffffff;
+      padding: 3.5rem 2rem 2.5rem;
+      text-align: center;
+      border-bottom: 4px solid var(--gold);
+    }
+
+    .crest {
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.25em;
+      color: var(--gold-light);
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 2.25rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.5rem;
+      color: #ffffff;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: #fed7aa;
+      font-weight: 400;
+      max-width: 800px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .badge-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+
+    .badge {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      color: #f1f5f9;
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+      padding: 2.25rem;
+      margin-bottom: 2rem;
+    }
+
+    h2 {
+      font-family: 'Cinzel', serif;
+      color: var(--primary-dark);
+      font-size: 1.5rem;
+      border-bottom: 2px solid var(--gold-light);
+      padding-bottom: 0.6rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      color: var(--slate-900);
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    p { margin-bottom: 1rem; color: var(--slate-700); }
+
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .toc-item {
+      background: var(--slate-50);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border-left: 3px solid var(--primary);
+      text-decoration: none;
+      color: var(--slate-800);
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.15s ease;
+    }
+
+    .toc-item:hover {
+      background: #fee2e2;
+      color: var(--primary-dark);
+      transform: translateX(4px);
+    }
+
+    .step-box {
+      background: var(--slate-50);
+      border-left: 4px solid var(--gold);
+      border-radius: 0 8px 8px 0;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .step-title {
+      font-weight: 700;
+      color: var(--slate-900);
+      font-size: 1.05rem;
+    }
+
+    .step-module {
+      font-family: monospace;
+      font-size: 0.8rem;
+      background: var(--slate-100);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      color: var(--primary);
+    }
+
+    ul, ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+      color: var(--slate-700);
+    }
+
+    li { margin-bottom: 0.35rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.25rem 0;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--slate-100);
+      color: var(--slate-900);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) { background: var(--slate-50); }
+
+    .callout {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.25rem 0;
+      font-size: 0.92rem;
+    }
+
+    .callout-warning {
+      background: #fffbeb;
+      border-left-color: #f59e0b;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+
+    @media print {
+      body { background: #ffffff; }
+      .header-banner { background: #7f1d1d !important; -webkit-print-color-adjust: exact; }
+      .card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header-banner">
+    <div class="crest">🏛️ BENTA'S FUNERAL HOME • EST. 1928 • HARLEM, NEW YORK</div>
+    <h1>Staff Operational Guide & User Manual</h1>
+    <p class="subtitle">A Comprehensive Reference for Mortuary Workflow Orchestration, Statutory Compliance, and Family Care</p>
+    <div class="badge-bar">
+      <span class="badge">📍 630 St. Nicholas Ave, NY 10030</span>
+      <span class="badge">📜 NYS DOH Reg #08850</span>
+      <span class="badge">📞 Careline: (212) 281-8850</span>
+      <span class="badge">🔐 Version 2.4.0 (Vercel Cloud Edge)</span>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Table of Contents -->
+    <section class="card">
+      <h2>📑 Quick Navigation & Table of Contents</h2>
+      <div class="toc-grid">
+        <a href="#section-philosophy" class="toc-item">1. Introduction & Core Philosophy</a>
+        <a href="#section-security" class="toc-item">2. Security, RBAC & Storage Vault</a>
+        <a href="#section-workflow" class="toc-item">3. The 12-Step Mortuary Workflow</a>
+        <a href="#section-departmental" class="toc-item">4. Departmental Quick Checklists</a>
+        <a href="#section-tutorials" class="toc-item">5. Step-by-Step System Tutorials</a>
+        <a href="#section-offline" class="toc-item">6. Offline PWA & iPad Installation</a>
+        <a href="#section-kinship" class="toc-item">7. NYS PHL § 4201 Kinship Hierarchy</a>
+        <a href="#section-faq" class="toc-item">8. Frequently Asked Questions (FAQ)</a>
+      </div>
+    </section>
+
+    <!-- 1. Philosophy -->
+    <section id="section-philosophy" class="card">
+      <h2>1. Introduction & Core Philosophy</h2>
+      <p>For nearly a century—since 1928—Benta’s Funeral Home has been the cornerstone of trust, dignity, and sacred reverence for Harlem families. Our reputation was built by hand: through compassionate eye contact in the arrangement room, meticulous preparation in the care center, and flawless cortege execution on St. Nicholas Avenue.</p>
+      
+      <div class="callout">
+        <strong>The Golden Principle:</strong> Technology will never replace the heart, empathy, or professional instinct of a licensed funeral director. This platform is your digital protective co-pilot—eliminating mathematical errors, preventing statutory oversights, and freeing your time to comfort grieving families.
+      </div>
+    </section>
+
+    <!-- 2. Security & RBAC -->
+    <section id="section-security" class="card">
+      <h2>2. Security, Access Control & Architecture</h2>
+      <p>The system enforces zero-trust data protection and strict role boundaries across 5 access tiers:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Primary Holder</th>
+            <th>Permissions & Scopes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Owner / Executive</strong></td>
+            <td>Director Jason Benta</td>
+            <td>Full financial ledgers, QuickBooks integration, audit logs, and master settings.</td>
+          </tr>
+          <tr>
+            <td><strong>General Manager</strong></td>
+            <td>Operations Lead</td>
+            <td>Staff scheduling, cash advance check printing, discrepancy overrides, contract locks.</td>
+          </tr>
+          <tr>
+            <td><strong>Licensed Director</strong></td>
+            <td>Case Directors</td>
+            <td>First calls, Form AP-47 drafting, EDRS filing, Day of Service HUD, family coordination.</td>
+          </tr>
+          <tr>
+            <td><strong>Staff / Apprentice</strong></td>
+            <td>Care Associates</td>
+            <td>Intake logs, transport chain of custody, photo uploads, floral staging.</td>
+          </tr>
+          <tr>
+            <td><strong>Family / Guest</strong></td>
+            <td>Informants & Relatives</td>
+            <td>PIN-gated access to Memorial Portal, Tribute Studio, and Split-Pay Crowdfunding.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Key Cryptographic Guardrails</h3>
+      <ul>
+        <li><strong>Client Credential Isolation:</strong> Master API secrets (Twilio, Stripe, OpenAI, QuickBooks, DocuSign) reside strictly on serverless edge functions and are never delivered to browsers.</li>
+        <li><strong>Encrypted Vault Persistence:</strong> All client records use <code>enc:v1:</code> salt-based keystream encryption with SHA-256 tamper verification.</li>
+        <li><strong>Biometric Passkeys:</strong> Hardware WebAuthn authentication (Touch ID, Face ID, YubiKey) ensures secure director access.</li>
+      </ul>
+    </section>
+
+    <!-- 3. Workflow -->
+    <section id="section-workflow" class="card">
+      <h2>3. The 12-Step Master Mortuary Workflow</h2>
+
+      <!-- Step 1 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 1: First Call Intake & Triage</span>
+          <span class="step-module">FirstCallIntakeModal.tsx</span>
+        </div>
+        <p>Capture caller identity, decedent vital facts, and place of death (Harlem Hospital, Mount Sinai, Calvary Hospice, Residence, OCME). Auto-flags medical examiner release status and initiates case file.</p>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 2: Removal Scheduling & Chain of Custody</span>
+          <span class="step-module">RemovalSchedulingModal.tsx</span>
+        </div>
+        <p>Assign transport team and van. Dispatch driver via SMS with destination address and morgue protocols. Log receiving timestamp, body tag ID, and care center refrigeration unit.</p>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 3: Golden Record & Statutory Kinship</span>
+          <span class="step-module">GoldenRecordDetail.tsx</span>
+        </div>
+        <p>Establish decedent master file. System audits legal authority under <strong>NYS PHL § 4201</strong> (Written Agent ➔ Spouse ➔ Domestic Partner ➔ Adult Children ➔ Parents ➔ Siblings). Flags missing sibling waivers.</p>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 4: Arrangement Conference & Form AP-47</span>
+          <span class="step-module">ArrangementContractBuilderModal.tsx</span>
+        </div>
+        <p>Select General Price List (GPL) package, browse integrated Batesville Casket catalog, and itemize professional services and cash advances. Computes exact totals and sales tax with zero mathematical errors.</p>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 5: NYC DOHMH EDRS Vital Statistics Rapid-Fill</span>
+          <span class="step-module">EdrsRapidFillModal.tsx</span>
+        </div>
+        <p>Validates all 18 mandatory vital fields (including Mother's Maiden Name and Military Veteran status). Generates clipboard/XML payload for seamless transfer to NYC eVital for burial/cremation permits.</p>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 6: DocuSign Remote Signature Dispatch</span>
+          <span class="step-module">DocuSignEnvelopeModal.tsx</span>
+        </div>
+        <p>Dispatches Form AP-47, Embalming Authorization, and Cremation Affidavits via DocuSign RSA JWT gateway. Signers complete 2FA SMS verification and seal documents with SHA-256 certificates.</p>
+      </div>
+
+      <!-- Step 7 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 7: Memorial Program & Commercial Press Export</span>
+          <span class="step-module">MemorialProgramBuilderModal.tsx</span>
+        </div>
+        <p>Design 4, 8, or 12-page funeral booklets with Harlem Burgundy or Cathedral Gold themes. 1-Click export generates 300 DPI CMYK press-ready PDFs with 0.125" bleed and crop marks for commercial printers.</p>
+      </div>
+
+      <!-- Step 8 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 8: Financial Verification & MICR Check Printing</span>
+          <span class="step-module">CashAdvanceCheckPrinterModal.tsx</span>
+        </div>
+        <p>Manage deposits and print MICR-encoded pass-through checks for Clergy ($350), Music ($250), and Death Certificates ($15/ea). Automatically synchronizes disbursements with General Ledger.</p>
+      </div>
+
+      <!-- Step 9 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 9: Facility Calendar & Fleet Dispatch</span>
+          <span class="step-module">FacilityCalendarView.tsx</span>
+        </div>
+        <p>Schedule Chapel 1 Sanctuary, Chapel 2 Parlor, and Repast Suite. Enforces 10-hour livery lock with automated SMS route sheets sent to limousine and hearse chauffeurs.</p>
+      </div>
+
+      <!-- Step 10 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 10: Family Care Concierge & Digital Tribute Studio</span>
+          <span class="step-module">FamilyPortalView.tsx</span>
+        </div>
+        <p>Private family portal featuring 24/7 AI Care Concierge, Harlem Florist Boutique (Daniela's / Barbara's), Living Memories audio recorder, and Family Split-Payment Crowdfunding.</p>
+      </div>
+
+      <!-- Step 11 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 11: Day of Service HUD & Mobile Sanctuary Control</span>
+          <span class="step-module">DirectorDayOfServiceHUDModal.tsx</span>
+        </div>
+        <p>Mobile command center for iPads/iPhones. Tracks service countdown, chapel climate, wireless audio, pallbearer white-glove check, and coordinates cortege departure.</p>
+      </div>
+
+      <!-- Step 12 -->
+      <div class="step-box">
+        <div class="step-header">
+          <span class="step-title">Step 12: QuickBooks Sync, Stripe POS & 365-Day Care</span>
+          <span class="step-module">IntegrationsCommandCenterModal.tsx</span>
+        </div>
+        <p>Synchronize invoice items directly into QuickBooks Online. Automated gentle SMS check-ins nurture the next of kin at 30, 90, 180, and 365-day milestones.</p>
+      </div>
+    </section>
+
+    <!-- 4. Tutorials -->
+    <section id="section-tutorials" class="card">
+      <h2>5. Step-by-Step Interactive Tutorials</h2>
+      
+      <h3>Tutorial 1: Creating a Complete Case from First Call to Form AP-47</h3>
+      <ol>
+        <li>Log in to the Director Backoffice with your Passkey or 6-digit PIN.</li>
+        <li>Click <strong>"+ New Case Intake"</strong> in the top navigation bar.</li>
+        <li>Enter decedent's full name, date of death, and location (e.g., <em>Harlem Hospital</em>).</li>
+        <li>Enter informant contact details and click <strong>"Save & Create Golden Record"</strong>.</li>
+        <li>Click <strong>"Open Contract Builder"</strong> and select <em>"Traditional Harlem Heritage Package"</em>.</li>
+        <li>Select the <em>Batesville 18-Gauge Auburn Sunset</em> casket.</li>
+        <li>Add cash advances: 10 Certified Death Certificates ($150), Clergy ($350), NYC Burial Permit ($40).</li>
+        <li>Click <strong>"Generate Form AP-47"</strong> ➔ <strong>"Dispatch via DocuSign"</strong>.</li>
+      </ol>
+
+      <h3>Tutorial 2: Designing & Exporting a Memorial Booklet for Press</h3>
+      <ol>
+        <li>From the Case Record, click <strong>"Memorial Program Studio"</strong>.</li>
+        <li>Select <strong>8-Page Booklet</strong> and <strong>Harlem Burgundy</strong> theme.</li>
+        <li>Upload cover portrait; fine-tune crop and positioning.</li>
+        <li>Use <strong>"AI Assist"</strong> to refine the obituary narrative.</li>
+        <li>Populate Order of Service and Pallbearer rosters.</li>
+        <li>Click <strong>"Export CMYK Press-Ready PDF"</strong> to download 300 DPI print files.</li>
+      </ol>
+    </section>
+
+    <!-- 5. Offline PWA -->
+    <section id="section-offline" class="card">
+      <h2>6. Offline Operations & PWA Installation</h2>
+      <div class="callout callout-warning">
+        <strong>Offline Resilience:</strong> If internet connectivity drops at 630 St. Nicholas Ave, the platform continues functioning seamlessly via the Service Worker cache and local IndexedDB vault.
+      </div>
+      <p><strong>To install on iPads / iPhones:</strong> Open Safari ➔ Navigate to <code>https://bentas-funeral-home-os.vercel.app</code> ➔ Tap the Share button ➔ Tap <strong>"Add to Home Screen"</strong>.</p>
+    </section>
+
+    <!-- 6. Kinship Hierarchy -->
+    <section id="section-kinship" class="card">
+      <h2>7. Compliance & Legal Hierarchy (NYS PHL § 4201)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Relationship Tier</th>
+            <th>Required Verification / Affidavit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Tier 1</strong></td>
+            <td>Designated Written Agent</td>
+            <td>NYS PHL § 4201 form signed prior to death with 2 witnesses.</td>
+          </tr>
+          <tr>
+            <td><strong>Tier 2</strong></td>
+            <td>Surviving Spouse</td>
+            <td>Valid marriage; no final divorce decree or legal separation.</td>
+          </tr>
+          <tr>
+            <td><strong>Tier 3</strong></td>
+            <td>Domestic Partner</td>
+            <td>Registered NYC domestic partnership or joint financial interdependence.</td>
+          </tr>
+          <tr>
+            <td><strong>Tier 4</strong></td>
+            <td>Adult Children</td>
+            <td>Majority consensus; requires sibling waiver for non-signing children.</td>
+          </tr>
+          <tr>
+            <td><strong>Tier 5</strong></td>
+            <td>Surviving Parents</td>
+            <td>Either surviving parent with legal kinship standing.</td>
+          </tr>
+          <tr>
+            <td><strong>Tier 6</strong></td>
+            <td>Adult Siblings</td>
+            <td>Majority consensus of surviving brothers and sisters.</td>
+          </tr>
+          <tr>
+            <td><strong>Tier 7</strong></td>
+            <td>Estate Guardian</td>
+            <td>Letters of Guardianship from New York Surrogate's Court.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 7. FAQ -->
+    <section id="section-faq" class="card">
+      <h2>8. Frequently Asked Questions (FAQ)</h2>
+      <p><strong>Q: How do family members access their private portal?</strong><br>
+      <em>A: Directors click "Send Family Portal Access SMS" on the Case Overview. The family receives a direct SMS link with a secure PIN.</em></p>
+      
+      <p><strong>Q: What if I make a typo in the decedent's name?</strong><br>
+      <em>A: Edit the Golden Record master profile; the Discrepancy Engine will automatically update Form AP-47, EDRS, and Memorial Programs simultaneously.</em></p>
+
+      <p><strong>Q: How do we sync transactions to QuickBooks Online?</strong><br>
+      <em>A: Open the Integrations Command Center, navigate to the QuickBooks tab, and click "Sync Ledger". Invoices and cash advances balance automatically.</em></p>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p><strong>Benta's Funeral Home, Inc.</strong> • 630 Saint Nicholas Avenue, New York, NY 10030 • (212) 281-8850</p>
+    <p>Continuous Service to Harlem and the Greater New York Community Since 1928</p>
+  </footer>
+
+</body>
+</html>

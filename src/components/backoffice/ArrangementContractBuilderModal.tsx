@@ -4,13 +4,15 @@ import {
   StatementOfGoodsData, 
   ServiceTypeAP47,
   FloralArrangementItem,
-  CustomLiveryVehicleItem
+  CustomLiveryVehicleItem,
+  ContractRevisionArchiveRecord
 } from '../../lib/types/funeral';
 import { 
   BFH_GPL_2026, 
   CATALOG_VAULTS, 
   calculateAP47Totals, 
-  getDefaultStatementOfGoodsForCase 
+  getDefaultStatementOfGoodsForCase,
+  computeContractDiffs
 } from '../../lib/data/generalPriceList';
 import {
   ALL_UNIFIED_MERCHANDISE,
@@ -31,6 +33,7 @@ import {
   CemeterySelectionModal, 
   SelectedCemeteryPayload 
 } from './CemeterySelectionModal';
+import { ContractRevisionArchiveModal } from './ContractRevisionArchiveModal';
 import { 
   FileText, 
   Printer, 
@@ -45,18 +48,19 @@ import {
   X, 
   BookOpen, 
   Building2, 
-  Copy,
-  Sparkles,
-  Layers,
-  Tag,
-  Image as ImageIcon,
-  HandCoins,
-  Key,
-  Search,
-  MapPin,
-  Calendar,
-  Clock,
-  Users
+  Copy, 
+  Sparkles, 
+  Layers, 
+  Tag, 
+  Image as ImageIcon, 
+  HandCoins, 
+  Key, 
+  Search, 
+  MapPin, 
+  Calendar, 
+  Clock, 
+  Users,
+  History
 } from 'lucide-react';
 
 
@@ -173,6 +177,40 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
   const [isCemeteryModalOpen, setIsCemeteryModalOpen] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Contract Adjustments & Revision Archive State
+  const [isRevisionArchiveOpen, setIsRevisionArchiveOpen] = useState(false);
+  const [contractRevisions, setContractRevisions] = useState<ContractRevisionArchiveRecord[]>(() => {
+    if (activeCase.statementOfGoods?.contractRevisions && activeCase.statementOfGoods.contractRevisions.length > 0) {
+      return activeCase.statementOfGoods.contractRevisions;
+    }
+    if (activeCase.contractRevisions && activeCase.contractRevisions.length > 0) {
+      return activeCase.contractRevisions;
+    }
+    const defaultSog = calculateAP47Totals(activeCase.statementOfGoods || getDefaultStatementOfGoodsForCase(activeCase));
+    const baseline: ContractRevisionArchiveRecord = {
+      id: `REV-${activeCase.caseNumber.replace(/[^a-zA-Z0-9]/g, '')}-00`,
+      revisionNumber: 1,
+      versionLabel: 'v1.0 (Original Baseline Contract)',
+      savedAt: new Date().toISOString(),
+      savedAtFormatted: 'Baseline Original Contract Creation',
+      savedByDirector: {
+        id: 'dir-01',
+        name: activeCase.assignedDirector || 'Jason Benta, LFD #08850',
+        licenseNumber: 'NYS LFD Reg. #08850',
+        role: 'Managing Funeral Director'
+      },
+      reasonNotes: 'Initial arrangement conference baseline agreement & GPL itemization.',
+      informantApprovalName: `${activeCase.informant.fullName} (${activeCase.informant.relationship})`,
+      previousGrandTotal: defaultSog.sectionIII.totalFuneralCharges,
+      newGrandTotal: defaultSog.sectionIII.totalFuneralCharges,
+      netAdjustmentAmount: 0,
+      adjustmentsSummary: [],
+      snapshotStatement: JSON.parse(JSON.stringify(defaultSog)),
+      isBaselineOriginal: true
+    };
+    return [baseline];
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -344,10 +382,95 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
     showToast(`🚗 Added ${newVehicle.vehicleType} to livery lineup!`);
   };
 
+  const handleUpdateVehicleCount = (vehicleId: string, newCount: number) => {
+    const count = Math.max(0, newCount);
+    const updated = { ...statementData };
+    updated.sectionI.G_vehicles = (updated.sectionI.G_vehicles || []).map((v) =>
+      v.id === vehicleId ? { ...v, count, totalAmount: count * v.unitPrice } : v
+    );
+    setStatementData(calculateAP47Totals(updated));
+  };
+
+  const handleUpdateVehicleUnitPrice = (vehicleId: string, newUnitPrice: number) => {
+    const unitPrice = Math.max(0, newUnitPrice);
+    const updated = { ...statementData };
+    updated.sectionI.G_vehicles = (updated.sectionI.G_vehicles || []).map((v) =>
+      v.id === vehicleId ? { ...v, unitPrice, totalAmount: v.count * unitPrice } : v
+    );
+    setStatementData(calculateAP47Totals(updated));
+  };
+
   const handleRemoveVehicle = (vehicleId: string) => {
     const updated = { ...statementData };
     updated.sectionI.G_vehicles = (updated.sectionI.G_vehicles || []).filter(v => v.id !== vehicleId);
     setStatementData(calculateAP47Totals(updated));
+  };
+
+  const handleUpdateFlowerQuantity = (flowerId: string, newQty: number) => {
+    const quantity = Math.max(1, newQty);
+    const updated = { ...statementData };
+    updated.sectionI.I6_flowerItems = (updated.sectionI.I6_flowerItems || []).map((f) =>
+      f.id === flowerId ? { ...f, quantity, totalAmount: quantity * f.unitPrice } : f
+    );
+    setStatementData(calculateAP47Totals(updated));
+  };
+
+  const handleUpdateFlowerUnitPrice = (flowerId: string, newUnitPrice: number) => {
+    const unitPrice = Math.max(0, newUnitPrice);
+    const updated = { ...statementData };
+    updated.sectionI.I6_flowerItems = (updated.sectionI.I6_flowerItems || []).map((f) =>
+      f.id === flowerId ? { ...f, unitPrice, totalAmount: f.quantity * unitPrice } : f
+    );
+    setStatementData(calculateAP47Totals(updated));
+  };
+
+  const handleArchiveNewRevision = (reasonNotes?: string) => {
+    const calculated = calculateAP47Totals(statementData);
+    const latestRevision = contractRevisions.length > 0 ? contractRevisions[contractRevisions.length - 1] : null;
+    const prevStatement = latestRevision ? latestRevision.snapshotStatement : statementData;
+    const diffs = computeContractDiffs(prevStatement, calculated);
+    const revisionNumber = contractRevisions.length + 1;
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    const newRevRecord: ContractRevisionArchiveRecord = {
+      id: `REV-${activeCase.caseNumber.replace(/[^a-zA-Z0-9]/g, '')}-${String(revisionNumber).padStart(2, '0')}`,
+      revisionNumber,
+      versionLabel: `v1.${revisionNumber - 1} (${reasonNotes ? (reasonNotes.length > 25 ? reasonNotes.slice(0, 25) + '...' : reasonNotes) : 'Adjustment'})`,
+      savedAt: now.toISOString(),
+      savedAtFormatted: formattedDate,
+      savedByDirector: {
+        id: 'dir-01',
+        name: 'Jason Benta, LFD #08850',
+        licenseNumber: 'NYS LFD Reg. #08850',
+        role: 'Managing Funeral Director'
+      },
+      reasonNotes: reasonNotes || 'Director adjusted quantities and line item entries.',
+      informantApprovalName: `${activeCase.informant.fullName} (${activeCase.informant.relationship})`,
+      previousGrandTotal: latestRevision ? latestRevision.newGrandTotal : calculated.sectionIII.totalFuneralCharges,
+      newGrandTotal: calculated.sectionIII.totalFuneralCharges,
+      netAdjustmentAmount: latestRevision ? (calculated.sectionIII.totalFuneralCharges - latestRevision.newGrandTotal) : 0,
+      adjustmentsSummary: diffs,
+      snapshotStatement: JSON.parse(JSON.stringify(calculated)),
+      isBaselineOriginal: false
+    };
+
+    const updatedRevisions = [...contractRevisions, newRevRecord];
+    setContractRevisions(updatedRevisions);
+    calculated.contractRevisions = updatedRevisions;
+    setStatementData(calculated);
+
+    if (onSaveContract) {
+      onSaveContract(activeCase.id, calculated);
+    }
+    showToast(`📜 Archived Contract Revision ${newRevRecord.versionLabel}!`);
+  };
+
+  const handleRestoreRevision = (snapshot: StatementOfGoodsData) => {
+    const restored = calculateAP47Totals(JSON.parse(JSON.stringify(snapshot)));
+    restored.contractRevisions = contractRevisions;
+    setStatementData(restored);
+    showToast(`✓ Restored contract snapshot successfully!`);
   };
 
   const handleAddBFHFloral = () => {
@@ -434,11 +557,48 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
       ? (customVenueName.trim() || 'External Sanctuary / Church') 
       : scheduleServiceVenue;
 
+    // Check if contract adjustments occurred compared to latest snapshot
+    const latestRev = contractRevisions.length > 0 ? contractRevisions[contractRevisions.length - 1] : null;
+    const prevSnapshot = latestRev ? latestRev.snapshotStatement : calculated;
+    const diffs = computeContractDiffs(prevSnapshot, calculated);
+
+    let updatedRevisions = [...contractRevisions];
+    if (diffs.length > 0) {
+      const revNum = contractRevisions.length + 1;
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const autoRev: ContractRevisionArchiveRecord = {
+        id: `REV-${activeCase.caseNumber.replace(/[^a-zA-Z0-9]/g, '')}-${String(revNum).padStart(2, '0')}`,
+        revisionNumber: revNum,
+        versionLabel: `v1.${revNum - 1} (Contract Update)`,
+        savedAt: now.toISOString(),
+        savedAtFormatted: formattedDate,
+        savedByDirector: {
+          id: 'dir-01',
+          name: 'Jason Benta, LFD #08850',
+          licenseNumber: 'NYS LFD Reg. #08850',
+          role: 'Managing Funeral Director'
+        },
+        reasonNotes: `Form AP-47 updated with ${diffs.length} itemized adjustment(s).`,
+        informantApprovalName: `${activeCase.informant.fullName} (${activeCase.informant.relationship})`,
+        previousGrandTotal: latestRev ? latestRev.newGrandTotal : calculated.sectionIII.totalFuneralCharges,
+        newGrandTotal: calculated.sectionIII.totalFuneralCharges,
+        netAdjustmentAmount: latestRev ? (calculated.sectionIII.totalFuneralCharges - latestRev.newGrandTotal) : 0,
+        adjustmentsSummary: diffs,
+        snapshotStatement: JSON.parse(JSON.stringify(calculated)),
+        isBaselineOriginal: false
+      };
+      updatedRevisions = [...contractRevisions, autoRev];
+      setContractRevisions(updatedRevisions);
+    }
+    calculated.contractRevisions = updatedRevisions;
+
     // Update Case object
     const updatedCase: GoldenRecordCase = {
       ...activeCase,
       totalAmountDue: calculated.sectionIII.totalFuneralCharges,
       statementOfGoods: calculated,
+      contractRevisions: updatedRevisions,
       serviceSelections: {
         ...activeCase.serviceSelections,
         basePackagePrice: calculated.sectionI.totalFuneralHomeCharges,
@@ -468,7 +628,7 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
           id: `note-${Date.now()}`,
           author: 'Jason Benta, LFD #08850',
           timestamp: 'Just now',
-          text: `📜 Statement of Goods (Form AP-47) finalized & synchronized. Service scheduled for ${formatDisplayDate(scheduleServiceDate)} at ${scheduleServiceTime} (${effectiveVenue}). Total Charges: $${calculated.sectionIII.totalFuneralCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })} (FH: $${calculated.sectionI.totalFuneralHomeCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })}, Cash Advances: $${calculated.sectionII.totalCashAdvances.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Balance Due: $${calculated.sectionIII.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`
+          text: `📜 Statement of Goods (Form AP-47) finalized & synchronized. Service scheduled for ${formatDisplayDate(scheduleServiceDate)} at ${scheduleServiceTime} (${effectiveVenue}). Total Charges: $${calculated.sectionIII.totalFuneralCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })} (FH: $${calculated.sectionI.totalFuneralHomeCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })}, Cash Advances: $${calculated.sectionII.totalCashAdvances.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Balance Due: $${calculated.sectionIII.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}.${diffs.length > 0 ? ` [Archived Revision v1.${updatedRevisions.length - 1} with ${diffs.length} adjustment(s)]` : ''}`
         },
         ...activeCase.notes
       ]
@@ -563,24 +723,48 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
 
           <div className="flex items-center space-x-2">
             <button
+              type="button"
+              onClick={() => setIsRevisionArchiveOpen(true)}
+              className="px-3 py-1.5 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/50 text-xs rounded-xl font-bold transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
+              title="View contract revision audit timeline, diffs, and print amendment riders"
+            >
+              <History className="w-3.5 h-3.5 text-amber-400" />
+              <span>Revision Archive</span>
+              <span className="px-1.5 py-0.2 bg-amber-400 text-neutral-950 rounded-full font-mono text-[10px] font-bold">
+                {contractRevisions.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleArchiveNewRevision()}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-neutral-200 text-xs rounded-xl font-bold transition flex items-center space-x-1 cursor-pointer"
+              title="Archive current contract adjustments snapshot"
+            >
+              <Save className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">Archive Revision</span>
+            </button>
+            <button
+              type="button"
               onClick={handleCopyContractSummary}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-neutral-200 text-xs rounded-xl font-bold transition flex items-center space-x-1"
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-neutral-200 text-xs rounded-xl font-bold transition flex items-center space-x-1 cursor-pointer"
               title="Copy text summary"
             >
               <Copy className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Copy Text</span>
             </button>
             <button
+              type="button"
               onClick={() => window.print()}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-neutral-200 text-xs rounded-xl font-bold transition flex items-center space-x-1"
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-neutral-200 text-xs rounded-xl font-bold transition flex items-center space-x-1 cursor-pointer"
               title="Print Form AP-47"
             >
               <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Print Contract</span>
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition"
+              className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1708,20 +1892,60 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
                         {(statementData.sectionI.G_vehicles || []).map((v) => (
-                          <tr key={v.id} className="hover:bg-neutral-50">
+                          <tr key={v.id} className="hover:bg-neutral-50 transition">
                             <td className="p-3 font-semibold text-neutral-900">{v.vehicleType}</td>
                             <td className="p-3 text-neutral-600 uppercase font-mono text-[10px]">{v.rateType.replace(/_/g, ' ')}</td>
-                            <td className="p-3 text-center font-mono font-bold">{v.count}</td>
-                            <td className="p-3 text-right font-mono">${v.unitPrice.toFixed(2)}</td>
+                            <td className="p-3 text-center">
+                              <div className="inline-flex items-center space-x-1 bg-white border border-neutral-300 rounded-xl p-0.5 shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateVehicleCount(v.id, Math.max(0, v.count - 1))}
+                                  className="w-6 h-6 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                                  title="Decrease vehicle count"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={20}
+                                  value={v.count}
+                                  onChange={(e) => handleUpdateVehicleCount(v.id, parseInt(e.target.value) || 0)}
+                                  className="w-10 text-center font-mono font-bold text-xs bg-transparent border-none p-0 focus:ring-0 text-neutral-900"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateVehicleCount(v.id, v.count + 1)}
+                                  className="w-6 h-6 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                                  title="Increase vehicle count"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="inline-flex items-center justify-end space-x-1">
+                                <span className="text-neutral-400 font-mono text-xs">$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={v.unitPrice}
+                                  onChange={(e) => handleUpdateVehicleUnitPrice(v.id, parseFloat(e.target.value) || 0)}
+                                  className="w-20 text-right font-mono text-xs p-1 bg-white border border-neutral-300 rounded-lg focus:border-[#991b1b] focus:ring-1 focus:ring-[#991b1b]"
+                                />
+                              </div>
+                            </td>
                             <td className="p-3 text-right font-mono font-bold text-[#991b1b]">
                               ${(v.count * v.unitPrice).toFixed(2)}
                             </td>
                             <td className="p-3 text-center">
                               <button
+                                type="button"
                                 onClick={() => handleRemoveVehicle(v.id)}
-                                className="p-1 text-neutral-400 hover:text-red-700"
+                                className="p-1.5 text-neutral-400 hover:text-red-700 transition cursor-pointer"
+                                title="Remove vehicle"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </td>
                           </tr>
@@ -2822,8 +3046,46 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                                       <span className="text-neutral-400 text-[10px]">No sash</span>
                                     )}
                                   </td>
-                                  <td className="p-3 text-center font-mono font-bold">{f.quantity}</td>
-                                  <td className="p-3 text-right font-mono">${f.unitPrice.toFixed(2)}</td>
+                                  <td className="p-3 text-center">
+                                    <div className="inline-flex items-center space-x-1 bg-white border border-neutral-300 rounded-xl p-0.5 shadow-2xs">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateFlowerQuantity(f.id, Math.max(1, f.quantity - 1))}
+                                        className="w-6 h-6 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                                        title="Decrease floral qty"
+                                      >
+                                        -
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={50}
+                                        value={f.quantity}
+                                        onChange={(e) => handleUpdateFlowerQuantity(f.id, parseInt(e.target.value) || 1)}
+                                        className="w-10 text-center font-mono font-bold text-xs bg-transparent border-none p-0 focus:ring-0 text-neutral-900"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateFlowerQuantity(f.id, f.quantity + 1)}
+                                        className="w-6 h-6 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                                        title="Increase floral qty"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-right">
+                                    <div className="inline-flex items-center justify-end space-x-1">
+                                      <span className="text-neutral-400 font-mono text-xs">$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={f.unitPrice}
+                                        onChange={(e) => handleUpdateFlowerUnitPrice(f.id, parseFloat(e.target.value) || 0)}
+                                        className="w-20 text-right font-mono text-xs p-1 bg-white border border-neutral-300 rounded-lg focus:border-[#991b1b] focus:ring-1 focus:ring-[#991b1b]"
+                                      />
+                                    </div>
+                                  </td>
                                   <td className="p-3 text-right font-mono font-bold text-[#991b1b]">${(f.quantity * f.unitPrice).toFixed(2)}</td>
                                   <td className="p-3 text-center">
                                     <button
@@ -2958,17 +3220,62 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-neutral-200">
                       <div>
-                        <label className="text-[10px] text-neutral-500 block mb-1">Total Quantity Printed:</label>
-                        <input
-                          type="number"
-                          value={statementData.sectionI.I10_programsMatrix.quantity}
-                          onChange={(e) => {
-                            const updated = { ...statementData };
-                            updated.sectionI.I10_programsMatrix.quantity = parseInt(e.target.value) || 0;
-                            setStatementData(calculateAP47Totals(updated));
-                          }}
-                          className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] text-neutral-500 font-bold">Total Quantity Printed:</label>
+                          <div className="flex items-center space-x-1">
+                            {[-50, -25, 25, 50, 100].map(delta => (
+                              <button
+                                key={delta}
+                                type="button"
+                                onClick={() => {
+                                  const updated = { ...statementData };
+                                  const newQ = Math.max(0, updated.sectionI.I10_programsMatrix.quantity + delta);
+                                  updated.sectionI.I10_programsMatrix.quantity = newQ;
+                                  setStatementData(calculateAP47Totals(updated));
+                                }}
+                                className="px-1.5 py-0.5 bg-neutral-200 hover:bg-neutral-300 rounded text-[10px] font-mono font-bold text-neutral-700 cursor-pointer"
+                              >
+                                {delta > 0 ? `+${delta}` : delta}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...statementData };
+                              updated.sectionI.I10_programsMatrix.quantity = Math.max(0, updated.sectionI.I10_programsMatrix.quantity - 25);
+                              setStatementData(calculateAP47Totals(updated));
+                            }}
+                            className="w-8 h-9 bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 rounded-lg font-bold text-sm flex items-center justify-center cursor-pointer"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min={0}
+                            step={25}
+                            value={statementData.sectionI.I10_programsMatrix.quantity}
+                            onChange={(e) => {
+                              const updated = { ...statementData };
+                              updated.sectionI.I10_programsMatrix.quantity = Math.max(0, parseInt(e.target.value) || 0);
+                              setStatementData(calculateAP47Totals(updated));
+                            }}
+                            className="w-full p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold text-center"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...statementData };
+                              updated.sectionI.I10_programsMatrix.quantity = updated.sectionI.I10_programsMatrix.quantity + 25;
+                              setStatementData(calculateAP47Totals(updated));
+                            }}
+                            className="w-8 h-9 bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 rounded-lg font-bold text-sm flex items-center justify-center cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="text-[10px] text-neutral-500 block mb-1">Unit Price ($):</label>
@@ -3053,19 +3360,47 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                     <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 space-y-2">
                       <span className="font-bold text-neutral-900 block">Thank You Cards (25 pk - $20.00):</span>
                       <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...statementData };
+                            const newQty = Math.max(0, (statementData.sectionI.I2_acknowledgementCardsQty || 0) - 25);
+                            updated.sectionI.I2_acknowledgementCardsQty = newQty;
+                            updated.sectionI.I2_acknowledgementCardsAmount = (newQty / 25) * BFH_GPL_2026.stationery.stockThankYouCards25;
+                            setStatementData(calculateAP47Totals(updated));
+                          }}
+                          className="w-8 h-8 bg-neutral-200 hover:bg-neutral-300 rounded-lg font-bold text-sm flex items-center justify-center cursor-pointer"
+                        >
+                          -
+                        </button>
                         <input
                           type="number"
+                          min={0}
+                          step={25}
                           value={statementData.sectionI.I2_acknowledgementCardsQty}
                           onChange={(e) => {
-                            const qty = parseInt(e.target.value) || 0;
+                            const qty = Math.max(0, parseInt(e.target.value) || 0);
                             const updated = { ...statementData };
                             updated.sectionI.I2_acknowledgementCardsQty = qty;
                             updated.sectionI.I2_acknowledgementCardsAmount = (qty / 25) * BFH_GPL_2026.stationery.stockThankYouCards25;
                             setStatementData(calculateAP47Totals(updated));
                           }}
-                          className="w-24 p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
+                          className="w-20 p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold text-center"
                         />
-                        <span className="text-neutral-500">cards total ($ {statementData.sectionI.I2_acknowledgementCardsAmount.toFixed(2)})</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...statementData };
+                            const newQty = (statementData.sectionI.I2_acknowledgementCardsQty || 0) + 25;
+                            updated.sectionI.I2_acknowledgementCardsQty = newQty;
+                            updated.sectionI.I2_acknowledgementCardsAmount = (newQty / 25) * BFH_GPL_2026.stationery.stockThankYouCards25;
+                            setStatementData(calculateAP47Totals(updated));
+                          }}
+                          className="w-8 h-8 bg-neutral-200 hover:bg-neutral-300 rounded-lg font-bold text-sm flex items-center justify-center cursor-pointer"
+                        >
+                          +
+                        </button>
+                        <span className="text-neutral-500">cards = <strong className="text-[#991b1b] font-mono">${statementData.sectionI.I2_acknowledgementCardsAmount.toFixed(2)}</strong></span>
                       </div>
                     </div>
 
@@ -3397,18 +3732,43 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
                       <label className="font-bold text-neutral-800 block">3. NYC Certified Death Certificate Transcripts ($15/ea):</label>
                       <div className="flex items-center space-x-2">
-                        <input
-                          type="number"
-                          value={statementData.sectionII.deathCertificateTranscriptsCount}
-                          onChange={(e) => {
-                            const count = parseInt(e.target.value) || 0;
-                            const updated = { ...statementData };
-                            updated.sectionII.deathCertificateTranscriptsCount = count;
-                            setStatementData(calculateAP47Totals(updated));
-                          }}
-                          className="w-20 p-2 bg-white border border-neutral-300 rounded-lg font-mono font-bold"
-                        />
-                        <span className="text-neutral-500 font-mono">copies = ${statementData.sectionII.deathCertificateTranscriptsAmount.toFixed(2)}</span>
+                        <div className="inline-flex items-center space-x-1 bg-white border border-neutral-300 rounded-lg p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...statementData };
+                              updated.sectionII.deathCertificateTranscriptsCount = Math.max(0, statementData.sectionII.deathCertificateTranscriptsCount - 1);
+                              setStatementData(calculateAP47Totals(updated));
+                            }}
+                            className="w-6 h-6 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center cursor-pointer"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min={0}
+                            value={statementData.sectionII.deathCertificateTranscriptsCount}
+                            onChange={(e) => {
+                              const count = Math.max(0, parseInt(e.target.value) || 0);
+                              const updated = { ...statementData };
+                              updated.sectionII.deathCertificateTranscriptsCount = count;
+                              setStatementData(calculateAP47Totals(updated));
+                            }}
+                            className="w-12 text-center font-mono font-bold text-xs bg-transparent border-none p-0 focus:ring-0 text-neutral-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...statementData };
+                              updated.sectionII.deathCertificateTranscriptsCount = statementData.sectionII.deathCertificateTranscriptsCount + 1;
+                              setStatementData(calculateAP47Totals(updated));
+                            }}
+                            className="w-6 h-6 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <span className="text-neutral-500 font-mono text-xs">copies = <strong className="text-[#991b1b] font-mono">${statementData.sectionII.deathCertificateTranscriptsAmount.toFixed(2)}</strong></span>
                       </div>
                       <p className="text-[10px] text-neutral-500 italic">Payee: NYC Dept. of Health &amp; Mental Hygiene (DOHMH)</p>
                     </div>
@@ -3429,7 +3789,35 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                     </div>
 
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
-                      <label className="font-bold text-neutral-800 block">5. Pallbearers (Professional Crew):</label>
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-neutral-800 block">5. Pallbearers (Professional Crew):</label>
+                        <div className="flex items-center space-x-1">
+                          {[
+                            { count: 0, amount: 0, label: '0' },
+                            { count: 4, amount: 500, label: '4 ($500)' },
+                            { count: 6, amount: 750, label: '6 ($750)' },
+                            { count: 8, amount: 1000, label: '8 ($1k)' }
+                          ].map(tier => (
+                            <button
+                              key={tier.label}
+                              type="button"
+                              onClick={() => {
+                                const updated = { ...statementData };
+                                updated.sectionII.pallbearersCount = tier.count;
+                                updated.sectionII.pallbearersAmount = tier.amount;
+                                setStatementData(calculateAP47Totals(updated));
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer ${
+                                statementData.sectionII.pallbearersAmount === tier.amount
+                                  ? 'bg-[#991b1b] text-white shadow-xs'
+                                  : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-700'
+                              }`}
+                            >
+                              {tier.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <input
                         type="number"
                         value={statementData.sectionII.pallbearersAmount}
@@ -4217,6 +4605,19 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
           currentCemeteryName={statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName}
           currentFeeAmount={statementData.sectionII.cemeteryOrCrematoryAmount}
           onSelectCemetery={handleCemeterySelected}
+        />
+      )}
+
+      {/* Contract Adjustments & Revision Archive Modal */}
+      {isRevisionArchiveOpen && (
+        <ContractRevisionArchiveModal
+          isOpen={isRevisionArchiveOpen}
+          onClose={() => setIsRevisionArchiveOpen(false)}
+          caseData={activeCase}
+          currentStatement={statementData}
+          revisions={contractRevisions}
+          onRestoreRevision={handleRestoreRevision}
+          onCreateRevision={(notes) => handleArchiveNewRevision(notes)}
         />
       )}
 

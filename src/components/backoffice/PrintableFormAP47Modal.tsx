@@ -200,8 +200,25 @@ export const PrintableFormAP47Modal: React.FC<PrintableFormAP47ModalProps> = ({
                 )}
                 {sog.sectionI.G_totalLiveryAmount > 0 && (
                   <tr>
-                    <td className="py-1.5">G. Livery & Transportation Fleet (Hearse, Lead, Limousines)</td>
-                    <td className="py-1.5 text-right font-mono">${sog.sectionI.G_totalLiveryAmount.toFixed(2)}</td>
+                    <td className="py-2" colSpan={2}>
+                      <div className="flex justify-between font-semibold border-b border-neutral-200 pb-1">
+                        <span>G. Livery &amp; Transportation Fleet Allocation:</span>
+                        <span className="font-mono font-bold">${sog.sectionI.G_totalLiveryAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="pt-1.5 space-y-1.5 pl-3">
+                        {(sog.sectionI.G_vehicles || []).map((v) => (
+                          <div key={v.id} className="flex items-center justify-between text-[11px] text-neutral-700 bg-neutral-50/70 p-1.5 rounded border border-neutral-200/60">
+                            <div>
+                              <span className="font-semibold text-neutral-900">{v.vehicleType}</span>
+                              <span className="text-[10px] text-neutral-500 uppercase ml-2">({v.rateType.replace(/_/g, ' ')})</span>
+                            </div>
+                            <div className="text-right font-mono font-medium">
+                              {v.count} &times; ${v.unitPrice.toFixed(2)} = ${(v.count * v.unitPrice).toFixed(2)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
                   </tr>
                 )}
                 {sog.sectionI.H1_casketAmount > 0 && (

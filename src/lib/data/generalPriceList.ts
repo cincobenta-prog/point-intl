@@ -3,7 +3,9 @@ import {
   GoldenRecordCase,
   ServiceTypeAP47,
   CustomLiveryVehicleItem,
-  FloralArrangementItem
+  FloralArrangementItem,
+  ContractRevisionArchiveRecord,
+  ContractAdjustmentDiff
 } from '../types/funeral';
 export * from './partnerCatalogs';
 
@@ -758,5 +760,280 @@ export const getDefaultStatementOfGoodsForCase = (c: GoldenRecordCase): Statemen
     }
   };
 
-  return calculateAP47Totals(rawData);
+  const calculated = calculateAP47Totals(rawData);
+
+  // Initialize Baseline v1.0 Revision Archive Snapshot if not present
+  const baselineRevision: ContractRevisionArchiveRecord = {
+    id: `REV-${c.caseNumber.replace(/[^a-zA-Z0-9]/g, '')}-00`,
+    revisionNumber: 1,
+    versionLabel: 'v1.0 (Original Baseline Contract)',
+    savedAt: new Date().toISOString(),
+    savedAtFormatted: 'Baseline Original Contract Creation',
+    savedByDirector: {
+      id: 'dir-01',
+      name: c.assignedDirector || 'Jason Benta, LFD #08850',
+      licenseNumber: 'NYS LFD Reg. #08850',
+      role: 'Managing Funeral Director'
+    },
+    reasonNotes: 'Initial arrangement conference agreement & GPL baseline itemization.',
+    informantApprovalName: `${c.informant.fullName} (${c.informant.relationship})`,
+    previousGrandTotal: calculated.sectionIII.totalFuneralCharges,
+    newGrandTotal: calculated.sectionIII.totalFuneralCharges,
+    netAdjustmentAmount: 0,
+    adjustmentsSummary: [],
+    snapshotStatement: JSON.parse(JSON.stringify(calculated)),
+    isBaselineOriginal: true
+  };
+
+  calculated.contractRevisions = [baselineRevision];
+  return calculated;
 };
+
+// -------------------------------------------------------------
+// CONTRACT ADJUSTMENTS & AUDIT REVISION DIFF ENGINE
+// -------------------------------------------------------------
+
+export const computeContractDiffs = (
+  prev: StatementOfGoodsData,
+  next: StatementOfGoodsData
+): ContractAdjustmentDiff[] => {
+  const diffs: ContractAdjustmentDiff[] = [];
+  let counter = 1;
+
+  // 1. Livery Vehicles
+  const prevVehicles = prev.sectionI.G_vehicles || [];
+  const nextVehicles = next.sectionI.G_vehicles || [];
+  const handledNextIds = new Set<string>();
+
+  prevVehicles.forEach((pv) => {
+    const nv = nextVehicles.find(v => v.id === pv.id || v.vehicleType === pv.vehicleType);
+    if (!nv) {
+      diffs.push({
+        id: `diff-${Date.now()}-${counter++}`,
+        category: 'Livery',
+        itemDescription: pv.vehicleType,
+        fieldChanged: 'Removed Vehicle from Contract',
+        oldValue: `${pv.count}x ($${(pv.count * pv.unitPrice).toFixed(2)})`,
+        newValue: '0x ($0.00)',
+        deltaAmount: -(pv.count * pv.unitPrice)
+      });
+    } else {
+      handledNextIds.add(nv.id);
+      if (pv.count !== nv.count || pv.unitPrice !== nv.unitPrice) {
+        const oldTotal = pv.count * pv.unitPrice;
+        const newTotal = nv.count * nv.unitPrice;
+        diffs.push({
+          id: `diff-${Date.now()}-${counter++}`,
+          category: 'Livery',
+          itemDescription: nv.vehicleType,
+          fieldChanged: pv.count !== nv.count ? 'Count / Qty Adjusted' : 'Unit Rate Adjusted',
+          oldValue: `${pv.count}x @ $${pv.unitPrice.toFixed(2)}`,
+          newValue: `${nv.count}x @ $${nv.unitPrice.toFixed(2)}`,
+          deltaAmount: newTotal - oldTotal
+        });
+      }
+    }
+  });
+
+  nextVehicles.forEach((nv) => {
+    if (!handledNextIds.has(nv.id) && !prevVehicles.some(v => v.vehicleType === nv.vehicleType)) {
+      diffs.push({
+        id: `diff-${Date.now()}-${counter++}`,
+        category: 'Livery',
+        itemDescription: nv.vehicleType,
+        fieldChanged: 'Added Vehicle to Fleet',
+        oldValue: '0x ($0.00)',
+        newValue: `${nv.count}x @ $${nv.unitPrice.toFixed(2)}`,
+        deltaAmount: nv.count * nv.unitPrice
+      });
+    }
+  });
+
+  // 2. Florals
+  const prevFlowers = prev.sectionI.I6_flowerItems || [];
+  const nextFlowers = next.sectionI.I6_flowerItems || [];
+  const handledNextFlowerIds = new Set<string>();
+
+  prevFlowers.forEach((pf) => {
+    const nf = nextFlowers.find(f => f.id === pf.id || (f.code && f.code === pf.code) || f.description === pf.description);
+    if (!nf) {
+      diffs.push({
+        id: `diff-${Date.now()}-${counter++}`,
+        category: 'Florals',
+        itemDescription: pf.name || pf.description,
+        fieldChanged: 'Removed Floral Tribute',
+        oldValue: `${pf.quantity}x ($${(pf.quantity * pf.unitPrice).toFixed(2)})`,
+        newValue: '0x ($0.00)',
+        deltaAmount: -(pf.quantity * pf.unitPrice)
+      });
+    } else {
+      handledNextFlowerIds.add(nf.id);
+      if (pf.quantity !== nf.quantity || pf.unitPrice !== nf.unitPrice) {
+        const oldTotal = pf.quantity * pf.unitPrice;
+        const newTotal = nf.quantity * nf.unitPrice;
+        diffs.push({
+          id: `diff-${Date.now()}-${counter++}`,
+          category: 'Florals',
+          itemDescription: nf.name || nf.description,
+          fieldChanged: 'Quantity / Rate Adjusted',
+          oldValue: `${pf.quantity}x @ $${pf.unitPrice.toFixed(2)}`,
+          newValue: `${nf.quantity}x @ $${nf.unitPrice.toFixed(2)}`,
+          deltaAmount: newTotal - oldTotal
+        });
+      }
+    }
+  });
+
+  nextFlowers.forEach((nf) => {
+    if (!handledNextFlowerIds.has(nf.id) && !prevFlowers.some(f => (f.code && f.code === nf.code) || f.description === nf.description)) {
+      diffs.push({
+        id: `diff-${Date.now()}-${counter++}`,
+        category: 'Florals',
+        itemDescription: nf.name || nf.description,
+        fieldChanged: 'Added Floral Tribute',
+        oldValue: '0x ($0.00)',
+        newValue: `${nf.quantity}x @ $${nf.unitPrice.toFixed(2)}`,
+        deltaAmount: nf.quantity * nf.unitPrice
+      });
+    }
+  });
+
+  // 3. Merchandise (Casket, Urn, Vault)
+  if (prev.sectionI.H1_casketAmount !== next.sectionI.H1_casketAmount || prev.sectionI.H1_casketModelNameOrNumber !== next.sectionI.H1_casketModelNameOrNumber) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Merchandise',
+      itemDescription: `Casket: ${next.sectionI.H1_casketModelNameOrNumber || 'Selected Casket'}`,
+      fieldChanged: 'Casket Model / Amount',
+      oldValue: `$${prev.sectionI.H1_casketAmount.toFixed(2)}`,
+      newValue: `$${next.sectionI.H1_casketAmount.toFixed(2)}`,
+      deltaAmount: next.sectionI.H1_casketAmount - prev.sectionI.H1_casketAmount
+    });
+  }
+
+  if (prev.sectionI.H2_outerReceptacleAmount !== next.sectionI.H2_outerReceptacleAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Merchandise',
+      itemDescription: `Vault: ${next.sectionI.H2_outerReceptacleModelName || 'Burial Vault'}`,
+      fieldChanged: 'Vault / Receptacle Selection',
+      oldValue: `$${prev.sectionI.H2_outerReceptacleAmount.toFixed(2)}`,
+      newValue: `$${next.sectionI.H2_outerReceptacleAmount.toFixed(2)}`,
+      deltaAmount: next.sectionI.H2_outerReceptacleAmount - prev.sectionI.H2_outerReceptacleAmount
+    });
+  }
+
+  if (prev.sectionI.H3_urnAmount !== next.sectionI.H3_urnAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Merchandise',
+      itemDescription: `Urn: ${next.sectionI.H3_urnModelName || 'Memorial Urn'}`,
+      fieldChanged: 'Urn / Keepsake Selection',
+      oldValue: `$${prev.sectionI.H3_urnAmount.toFixed(2)}`,
+      newValue: `$${next.sectionI.H3_urnAmount.toFixed(2)}`,
+      deltaAmount: next.sectionI.H3_urnAmount - prev.sectionI.H3_urnAmount
+    });
+  }
+
+  // 4. Stationery & Programs
+  if (prev.sectionI.I10_programsMatrix.quantity !== next.sectionI.I10_programsMatrix.quantity || prev.sectionI.I10_programsMatrix.unitPrice !== next.sectionI.I10_programsMatrix.unitPrice) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Stationery',
+      itemDescription: 'Printed Memorial Programs & Booklets',
+      fieldChanged: 'Print Quantity Adjusted',
+      oldValue: `${prev.sectionI.I10_programsMatrix.quantity} qty ($${prev.sectionI.I10_programsMatrix.totalAmount.toFixed(2)})`,
+      newValue: `${next.sectionI.I10_programsMatrix.quantity} qty ($${next.sectionI.I10_programsMatrix.totalAmount.toFixed(2)})`,
+      deltaAmount: next.sectionI.I10_programsMatrix.totalAmount - prev.sectionI.I10_programsMatrix.totalAmount
+    });
+  }
+
+  if (prev.sectionI.I1_memorialCardsQty !== next.sectionI.I1_memorialCardsQty || prev.sectionI.I1_memorialCardsAmount !== next.sectionI.I1_memorialCardsAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Stationery',
+      itemDescription: 'Memorial / Prayer Cards (50 pk)',
+      fieldChanged: 'Cards Quantity Adjusted',
+      oldValue: `${prev.sectionI.I1_memorialCardsQty || 0} cards ($${prev.sectionI.I1_memorialCardsAmount.toFixed(2)})`,
+      newValue: `${next.sectionI.I1_memorialCardsQty || 0} cards ($${next.sectionI.I1_memorialCardsAmount.toFixed(2)})`,
+      deltaAmount: next.sectionI.I1_memorialCardsAmount - prev.sectionI.I1_memorialCardsAmount
+    });
+  }
+
+  if (prev.sectionI.I2_acknowledgementCardsQty !== next.sectionI.I2_acknowledgementCardsQty || prev.sectionI.I2_acknowledgementCardsAmount !== next.sectionI.I2_acknowledgementCardsAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Stationery',
+      itemDescription: 'Acknowledgement Thank You Cards',
+      fieldChanged: 'Quantity Adjusted',
+      oldValue: `${prev.sectionI.I2_acknowledgementCardsQty || 0} cards ($${prev.sectionI.I2_acknowledgementCardsAmount.toFixed(2)})`,
+      newValue: `${next.sectionI.I2_acknowledgementCardsQty || 0} cards ($${next.sectionI.I2_acknowledgementCardsAmount.toFixed(2)})`,
+      deltaAmount: next.sectionI.I2_acknowledgementCardsAmount - prev.sectionI.I2_acknowledgementCardsAmount
+    });
+  }
+
+  // 5. Facilities & Repast
+  if (prev.sectionI.F3_repastRoomAmount !== next.sectionI.F3_repastRoomAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Facilities',
+      itemDescription: 'BFH Historic Repast Room Reservation',
+      fieldChanged: next.sectionI.F3_repastRoomAmount > 0 ? 'Added Repast Room' : 'Removed Repast Room',
+      oldValue: `$${prev.sectionI.F3_repastRoomAmount.toFixed(2)}`,
+      newValue: `$${next.sectionI.F3_repastRoomAmount.toFixed(2)}`,
+      deltaAmount: next.sectionI.F3_repastRoomAmount - prev.sectionI.F3_repastRoomAmount
+    });
+  }
+
+  // 6. Cash Advances
+  if (prev.sectionII.cemeteryOrCrematoryAmount !== next.sectionII.cemeteryOrCrematoryAmount || prev.sectionII.cemeteryOrCrematoryName !== next.sectionII.cemeteryOrCrematoryName) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Cash Advances',
+      itemDescription: `Cemetery/Crematory: ${next.sectionII.cemeteryOrCrematoryName || 'Interment/Cremation Fee'}`,
+      fieldChanged: 'Cemetery Fee Adjusted',
+      oldValue: `$${prev.sectionII.cemeteryOrCrematoryAmount.toFixed(2)}`,
+      newValue: `$${next.sectionII.cemeteryOrCrematoryAmount.toFixed(2)}`,
+      deltaAmount: next.sectionII.cemeteryOrCrematoryAmount - prev.sectionII.cemeteryOrCrematoryAmount
+    });
+  }
+
+  if (prev.sectionII.deathCertificateTranscriptsCount !== next.sectionII.deathCertificateTranscriptsCount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Cash Advances',
+      itemDescription: 'NYC Certified Death Certificate Transcripts',
+      fieldChanged: 'Transcripts Count Adjusted',
+      oldValue: `${prev.sectionII.deathCertificateTranscriptsCount} copies ($${prev.sectionII.deathCertificateTranscriptsAmount.toFixed(2)})`,
+      newValue: `${next.sectionII.deathCertificateTranscriptsCount} copies ($${next.sectionII.deathCertificateTranscriptsAmount.toFixed(2)})`,
+      deltaAmount: next.sectionII.deathCertificateTranscriptsAmount - prev.sectionII.deathCertificateTranscriptsAmount
+    });
+  }
+
+  if (prev.sectionII.clergyHonorariaAmount !== next.sectionII.clergyHonorariaAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Cash Advances',
+      itemDescription: 'Clergy Honoraria / Church Officiant',
+      fieldChanged: 'Honorarium Amount Adjusted',
+      oldValue: `$${prev.sectionII.clergyHonorariaAmount.toFixed(2)}`,
+      newValue: `$${next.sectionII.clergyHonorariaAmount.toFixed(2)}`,
+      deltaAmount: next.sectionII.clergyHonorariaAmount - prev.sectionII.clergyHonorariaAmount
+    });
+  }
+
+  if (prev.sectionII.pallbearersAmount !== next.sectionII.pallbearersAmount) {
+    diffs.push({
+      id: `diff-${Date.now()}-${counter++}`,
+      category: 'Cash Advances',
+      itemDescription: 'Professional Pallbearers Crew',
+      fieldChanged: 'Pallbearers Fee Adjusted',
+      oldValue: `$${prev.sectionII.pallbearersAmount.toFixed(2)}`,
+      newValue: `$${next.sectionII.pallbearersAmount.toFixed(2)}`,
+      deltaAmount: next.sectionII.pallbearersAmount - prev.sectionII.pallbearersAmount
+    });
+  }
+
+  return diffs;
+};
+
