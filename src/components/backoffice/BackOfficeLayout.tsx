@@ -30,13 +30,8 @@ import {
   UserCheck,
   Lock,
   Printer,
-  Radio,
-  ShieldCheck,
-  Cloud,
   Bot,
   Video,
-  CreditCard,
-  Receipt,
   Zap
 } from 'lucide-react';
 
@@ -106,15 +101,15 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
   onOpenContractModal,
   onOpenPrintAP47,
   onAdvancePhase,
-  onOpenTwoWaySmsModal,
-  onOpenTwilioGatewayModal,
-  onOpenDocuSignModal,
-  onOpenCloudModal,
+  onOpenTwoWaySmsModal: _onOpenTwoWaySmsModal,
+  onOpenTwilioGatewayModal: _onOpenTwilioGatewayModal,
+  onOpenDocuSignModal: _onOpenDocuSignModal,
+  onOpenCloudModal: _onOpenCloudModal,
   onOpenAIModal,
   onOpenPressModal,
   onOpenWebcastModal,
-  onOpenStripeModal,
-  onOpenQuickBooks,
+  onOpenStripeModal: _onOpenStripeModal,
+  onOpenQuickBooks: _onOpenQuickBooks,
   onOpenIntegrationsCenter,
   onOpenSimulationModal,
   onOpenFirstCallIntake: _onOpenFirstCallIntake,
@@ -188,14 +183,14 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
     <div className="bg-white text-neutral-900 flex flex-col font-sans border-b border-neutral-200 shadow-sm">
 
       {/* Top Universal Back-Office Header: White & Crimson */}
-      <header className="bg-white border-b border-neutral-200 px-4 sm:px-6 py-3 shrink-0">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <header className="bg-white border-b border-neutral-200 px-4 sm:px-6 py-2.5 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
 
           {/* Brand & Active Case Identifier */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             <button
               onClick={onExitBackOffice}
-              className="flex items-center space-x-1.5 text-xs text-neutral-700 hover:text-[#991b1b] bg-neutral-100 hover:bg-neutral-200 px-3 py-1.5 rounded-lg border border-neutral-300 font-semibold transition"
+              className="flex items-center space-x-1.5 text-xs text-neutral-700 hover:text-[#991b1b] bg-neutral-100 hover:bg-neutral-200 px-3 py-1.5 rounded-lg border border-neutral-300 font-semibold transition cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Public Website</span>
@@ -207,33 +202,35 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
               <span className="font-serif-title font-bold text-[#991b1b] text-base tracking-wide">
                 BFH Backoffice
               </span>
-              <span className="text-[11px] bg-amber-100 text-[#b45309] px-2 py-0.5 rounded uppercase tracking-widest font-bold hidden md:inline border border-amber-300">
+              <span className="text-[10px] bg-amber-100 text-[#b45309] px-2 py-0.5 rounded uppercase tracking-widest font-bold hidden md:inline border border-amber-300">
                 Version 2
               </span>
             </div>
           </div>
 
-          {/* Active Case Selector Dropdown */}
-          <div className="flex items-center space-x-3">
-            <span className="text-xs text-neutral-500 font-medium hidden lg:inline">Active Case:</span>
-            <select
-              value={activeCase.id}
-              onChange={(e) => {
-                const found = cases.find(c => c.id === e.target.value);
-                if (found) onSelectCase(found);
-              }}
-              className="bg-neutral-50 border border-neutral-300 text-neutral-900 text-xs font-bold rounded-lg px-3 py-1.5 outline-none focus:border-[#991b1b] shadow-sm"
-            >
-              {cases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.caseNumber} • {c.decedent.legalName} ({c.dispositionType.replace('_', ' ').toUpperCase()})
-                </option>
-              ))}
-            </select>
+          {/* Active Case Selector Dropdown & Primary Case Operations */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center space-x-2 bg-neutral-50 px-2.5 py-1 rounded-lg border border-neutral-300">
+              <span className="text-[11px] text-neutral-500 font-semibold hidden lg:inline">Case:</span>
+              <select
+                value={activeCase.id}
+                onChange={(e) => {
+                  const found = cases.find(c => c.id === e.target.value);
+                  if (found) onSelectCase(found);
+                }}
+                className="bg-transparent text-neutral-900 text-xs font-bold outline-hidden cursor-pointer max-w-[220px] sm:max-w-[280px] truncate"
+              >
+                {cases.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.caseNumber} • {c.decedent.legalName} ({c.dispositionType.replace('_', ' ').toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <button
               onClick={onOpenNewCase}
-              className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-sm border border-amber-400/40"
+              className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-xs border border-amber-400/40 cursor-pointer"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Case</span>
@@ -242,7 +239,7 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
             {onOpenRemovalModal && (
               <button
                 onClick={onOpenRemovalModal}
-                className="bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-xs"
+                className="bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-2xs cursor-pointer"
                 title="Schedule First Call Removal & Custody Affidavit"
               >
                 <Truck className="w-3.5 h-3.5 text-blue-700" />
@@ -253,7 +250,7 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
             {onOpenContractModal && (
               <button
                 onClick={onOpenContractModal}
-                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-xs"
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-2xs cursor-pointer"
                 title="Open Arrangement Conference & AP-47 Contract Studio"
               >
                 <ScrollText className="w-3.5 h-3.5 text-emerald-700" />
@@ -261,260 +258,106 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
               </button>
             )}
 
-            {/* Top Primary AI Concierge & Whisper Launcher */}
+            {/* AI Concierge & Audio Tribute */}
             {onOpenAIModal && (
               <button
                 onClick={onOpenAIModal}
-                className="bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-sm border border-indigo-400/50 cursor-pointer"
-                title="Open 24/7 AI Family Care Concierge, 9-Part Obituary Generator & Whisper Audio Archive"
+                className="bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-xs border border-indigo-400/50 cursor-pointer"
+                title="Open 24/7 AI Family Care Concierge, 9-Part Obituary Generator & Audio Archive"
               >
                 <Bot className="w-3.5 h-3.5 text-indigo-200 animate-pulse" />
                 <span>AI Concierge 🤖</span>
               </button>
             )}
 
-            {/* Commercial Press Fulfillment & 300 DPI CMYK Launcher */}
+            {/* Commercial Press Fulfillment */}
             {onOpenPressModal && (
               <button
                 onClick={onOpenPressModal}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-sm border border-amber-400/50 cursor-pointer"
-                title="Open Commercial Press Fulfillment, 300 DPI CMYK Programs & Hardcover Books"
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-xs border border-amber-400/50 cursor-pointer"
+                title="Open Commercial Press Fulfillment & 300 DPI CMYK Programs"
               >
                 <Printer className="w-3.5 h-3.5 text-amber-100" />
                 <span>Press Dispatch 🖨️</span>
               </button>
             )}
 
-            {/* Live 4K Webcasting & PTZ Multi-Cam Studio Launcher */}
+            {/* Live 4K Webcasting */}
             {onOpenWebcastModal && (
               <button
                 onClick={onOpenWebcastModal}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-sm border border-red-400/50 cursor-pointer animate-pulse"
-                title="Open Live 4K Webcasting, Multi-Camera PTZ Switcher, Security PIN & Vimeo Gateway"
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-xs border border-red-400/50 cursor-pointer"
+                title="Open Live 4K Webcasting, Multi-Camera PTZ Switcher & Broadcast Gate"
               >
                 <Video className="w-3.5 h-3.5 text-red-100" />
                 <span>Live 4K Webcast 🎥</span>
               </button>
             )}
 
-            {/* Stripe Merchant POS Terminal & Split-Pay Launcher */}
-            {onOpenStripeModal && (
-              <button
-                onClick={onOpenStripeModal}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-sm border border-emerald-400/50 cursor-pointer"
-                title="Open Stripe Merchant Terminal, Apple/Google Pay, Plaid ACH & Split-Pay Crowdfunding Hub"
-              >
-                <CreditCard className="w-3.5 h-3.5 text-emerald-200" />
-                <span>Stripe POS 💳</span>
-              </button>
-            )}
-
-            {/* Intuit QuickBooks Online Invoicing & GL Sync Launcher */}
-            {onOpenQuickBooks && (
-              <button
-                onClick={onOpenQuickBooks}
-                className="bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-sm border border-teal-400/50 cursor-pointer"
-                title="Open Intuit QuickBooks Online 2-Way Invoice Sync & General Ledger Reconciliation"
-              >
-                <Receipt className="w-3.5 h-3.5 text-teal-200" />
-                <span>QuickBooks 📊</span>
-              </button>
-            )}
-
-            {/* Unified Enterprise Integrations Command Center Hub */}
+            {/* Consolidated Enterprise Integrations Command Center Hub */}
             {onOpenIntegrationsCenter && (
               <button
                 onClick={onOpenIntegrationsCenter}
-                className="bg-gradient-to-r from-amber-700 via-red-900 to-neutral-900 hover:opacity-95 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-md border border-amber-400/60 cursor-pointer"
-                title="Open Unified Enterprise Integrations Command Center & API Gateway Hub"
+                className="bg-gradient-to-r from-neutral-900 via-stone-900 to-amber-950 hover:opacity-95 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-xs border border-amber-500/50 cursor-pointer"
+                title="Open Enterprise Integrations Hub (Twilio, DocuSign, Stripe, QuickBooks, Cloud Sync)"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                 <span>Integrations Hub ⚡</span>
-                <span className="bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 px-1 py-0.2 rounded text-[9px] font-mono font-bold">9/9 LIVE</span>
+                <span className="bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold">9/9 LIVE</span>
               </button>
             )}
 
-            {/* End-to-End Case Lifecycle Simulation Runner */}
+            {/* Live Family SMS Simulator & Notifications */}
+            {onOpenNotifications && (
+              <button
+                onClick={onOpenNotifications}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[#991b1b] border border-red-300/80 rounded-lg text-xs font-bold transition shadow-2xs group cursor-pointer"
+                title="Open Live Family SMS & Alert Dispatch Hub"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-[#991b1b] group-hover:scale-110 transition-transform" />
+                <span className="hidden md:inline">Family SMS Hub</span>
+                {notificationCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-[#991b1b] text-white text-[10px] font-mono rounded-full font-bold">
+                    {notificationCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Case Simulation Runner */}
             {onOpenSimulationModal && (
               <button
                 onClick={onOpenSimulationModal}
-                className="bg-gradient-to-r from-indigo-800 to-purple-900 hover:opacity-95 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-md border border-purple-400/50 cursor-pointer"
-                title="Run 1-Click Interactive End-to-End Case Lifecycle Simulation Across All 5 Phases"
+                className="bg-indigo-900 hover:bg-indigo-800 text-indigo-100 font-bold text-xs px-2.5 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-xs border border-indigo-400/40 cursor-pointer"
+                title="Run 1-Click Interactive End-to-End Case Lifecycle Simulation"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />
-                <span>Case Simulation 🚀</span>
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span className="hidden xl:inline">Simulation 🚀</span>
               </button>
             )}
 
-            {/* Interactive Guided Tour & Spotlight Tutorial Launcher */}
+            {/* Interactive Guided Tour */}
             {onOpenGuidedTour && (
               <button
                 onClick={onOpenGuidedTour}
-                className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-900 hover:opacity-95 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 transition shadow-md border border-amber-300/60 cursor-pointer animate-pulse"
-                title="Open Interactive Step-by-Step Guided Tour for Staff & Families"
+                className="bg-amber-700/80 hover:bg-amber-700 text-amber-100 font-bold text-xs px-2.5 py-1.5 rounded-lg flex items-center space-x-1 transition shadow-xs border border-amber-400/40 cursor-pointer"
+                title="Open Interactive Step-by-Step Guided Tour"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-                <span>Guided Tour 🎓</span>
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span className="hidden xl:inline">Tour 🎓</span>
               </button>
             )}
           </div>
 
-          {/* RBAC Role Switcher & Family SMS Dispatch Launcher */}
-          <div className="flex items-center space-x-2.5">
-
-            {/* Livery Hold Modal Launcher */}
-            <button
-              onClick={onOpenLiveryModal}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-[#b45309] border border-amber-300/80 rounded-xl text-xs font-bold transition shadow-2xs group"
-              title="Open Livery & Transport Vendor Vehicle Hold Engine"
-            >
-              <Car className="w-3.5 h-3.5 text-[#b45309] group-hover:scale-110 transition-transform" />
-              <span className="hidden xl:inline">Livery Fleet</span>
-            </button>
-
-            {/* 2-Way Vendor SMS Dispatch Launcher */}
-            {onOpenTwoWaySmsModal && (
-              <button
-                onClick={() => onOpenTwoWaySmsModal()}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition shadow-2xs group"
-                title="Open Two-Way Service Partner SMS Dispatch & Carrier Confirmation Hub"
-              >
-                <Users className="w-3.5 h-3.5 text-amber-300 group-hover:scale-110 transition-transform" />
-                <span className="hidden xl:inline">Vendor SMS</span>
-              </button>
-            )}
-
-            {/* Print Form AP-47 Quick Action */}
-            {onOpenPrintAP47 && (
-              <button
-                onClick={onOpenPrintAP47}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#991b1b] hover:bg-red-800 text-white border border-amber-300/40 rounded-xl text-xs font-bold transition shadow-2xs group"
-                title="Print Official Form AP-47 Statement of Goods & Services (10 NYCRR § 77.8)"
-              >
-                <Printer className="w-3.5 h-3.5 text-amber-300 group-hover:scale-110 transition-transform" />
-                <span className="hidden xl:inline">Print AP-47</span>
-              </button>
-            )}
-
-            {/* Live Family SMS Simulator Quick Button */}
-            <button
-              onClick={onOpenNotifications}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[#991b1b] border border-red-300/80 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-              title="Open Live Family SMS & Alert Dispatch Hub"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-[#991b1b] group-hover:scale-110 transition-transform" />
-              <span className="hidden md:inline">Family SMS Hub</span>
-              {notificationCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-[#991b1b] text-white text-[10px] font-mono rounded-full font-bold">
-                  {notificationCount}
-                </span>
-              )}
-            </button>
-
-            {/* Twilio Telecom Gateway Settings */}
-            {onOpenTwilioGatewayModal && (
-              <button
-                onClick={onOpenTwilioGatewayModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Configure Twilio API Keys, Sender Phone Number, and Live Gateway"
-              >
-                <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                <span className="hidden sm:inline">Twilio Gateway ⚙️</span>
-              </button>
-            )}
-
-            {/* DocuSign Legal eSign & NYS ESRA Hub */}
-            {onOpenDocuSignModal && (
-              <button
-                onClick={onOpenDocuSignModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Open DocuSign Legal Signature Hub & NYS ESRA Compliance"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
-                <span className="hidden sm:inline">DocuSign Hub 📜</span>
-              </button>
-            )}
-
-            {/* Cloud Database, S3 Storage & Multi-Device Real-Time Sync */}
-            {onOpenCloudModal && (
-              <button
-                onClick={onOpenCloudModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-950 border border-sky-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Open Multi-Device Cloud Sync, PostgreSQL Cluster & S3 Object Storage Hub"
-              >
-                <Cloud className="w-3.5 h-3.5 text-sky-700" />
-                <span className="hidden sm:inline">Cloud Sync ☁️</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </button>
-            )}
-
-            {/* AI Family Care Concierge & Whisper Audio Hub */}
-            {onOpenAIModal && (
-              <button
-                onClick={onOpenAIModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white border border-indigo-400/50 rounded-xl text-xs font-bold transition shadow-md group cursor-pointer"
-                title="Open 24/7 AI Family Care Concierge, 9-Part Obituary Generator & Whisper Audio Archive"
-              >
-                <Bot className="w-3.5 h-3.5 text-indigo-200 animate-pulse" />
-                <span>AI Concierge 🤖</span>
-              </button>
-            )}
-
-            {/* Commercial Press Fulfillment & SFTP Drop */}
-            {onOpenPressModal && (
-              <button
-                onClick={onOpenPressModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Open Commercial Press Fulfillment, 300 DPI CMYK Programs & Hardcover Books"
-              >
-                <Printer className="w-3.5 h-3.5 text-amber-700" />
-                <span className="hidden sm:inline">Press Fulfillment 🖨️</span>
-              </button>
-            )}
-
-            {/* Live 4K Webcasting & PIN Guard */}
-            {onOpenWebcastModal && (
-              <button
-                onClick={onOpenWebcastModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-950 border border-red-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Open Live 4K Webcasting, Multi-Cam PTZ Switcher, Security PIN & Vimeo Gateway"
-              >
-                <Video className="w-3.5 h-3.5 text-red-600 animate-pulse" />
-                <span className="hidden sm:inline">4K Webcast 🎥</span>
-              </button>
-            )}
-
-            {/* Stripe Merchant POS & Split-Pay Terminal */}
-            {onOpenStripeModal && (
-              <button
-                onClick={onOpenStripeModal}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Open Stripe Merchant Terminal, Apple Pay, Plaid ACH & Split-Pay Crowdfunding Hub"
-              >
-                <CreditCard className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="hidden sm:inline">Stripe POS 💳</span>
-              </button>
-            )}
-
-            {/* Intuit QuickBooks Online 2-Way Invoice Sync */}
-            {onOpenQuickBooks && (
-              <button
-                onClick={onOpenQuickBooks}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-950 border border-teal-300 rounded-xl text-xs font-bold transition shadow-2xs group cursor-pointer"
-                title="Open Intuit QuickBooks Online 2-Way Invoice Sync & General Ledger Reconciliation"
-              >
-                <Receipt className="w-3.5 h-3.5 text-teal-700" />
-                <span className="hidden sm:inline">QuickBooks 📊</span>
-              </button>
-            )}
-
+          {/* RBAC Role Switcher & Notifications Bell */}
+          <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-1 bg-neutral-100 p-1 rounded-lg border border-neutral-200">
               {(['manager', 'director', 'staff', 'accounting', 'family'] as UserRole[]).map((r) => (
                 <button
                   key={r}
                   onClick={() => onChangeRole(r)}
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition flex items-center gap-1 ${currentRole === r
-                      ? 'bg-[#991b1b] text-white shadow-sm'
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${currentRole === r
+                      ? 'bg-[#991b1b] text-white shadow-xs'
                       : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200'
                     }`}
                 >
@@ -528,15 +371,21 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
               ))}
             </div>
 
-            <button
-              onClick={onOpenNotifications}
-              className="p-2 rounded-full bg-neutral-100 hover:bg-neutral-200 text-[#991b1b] relative border border-neutral-200 transition"
-              title="View Alert Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#991b1b] rounded-full animate-ping" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#991b1b] rounded-full" />
-            </button>
+            {onOpenNotifications && (
+              <button
+                onClick={onOpenNotifications}
+                className="p-2 rounded-full bg-neutral-100 hover:bg-neutral-200 text-[#991b1b] relative border border-neutral-200 transition cursor-pointer"
+                title="View Alert Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {notificationCount > 0 && (
+                  <>
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#991b1b] rounded-full animate-ping" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#991b1b] rounded-full" />
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
         </div>
