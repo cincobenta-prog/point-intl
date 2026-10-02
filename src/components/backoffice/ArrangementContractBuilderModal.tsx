@@ -53,7 +53,10 @@ import {
   HandCoins,
   Key,
   Search,
-  MapPin
+  MapPin,
+  Calendar,
+  Clock,
+  Users
 } from 'lucide-react';
 
 
@@ -85,6 +88,43 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
   // Wizard Step State (1: Biography/Story, 2: Service Type & Baseline, 3: Variables & Custom Items, 4: Live AP-47 Contract Preview)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [isFamilyPortalPinModalOpen, setIsFamilyPortalPinModalOpen] = useState(false);
+
+  // Step 2 Master Service Schedule & Timing Coordinator State
+  const [scheduleServiceDate, setScheduleServiceDate] = useState<string>(() => {
+    return activeCase.serviceSelections?.serviceDate || '2026-09-22';
+  });
+  const [scheduleServiceTime, setScheduleServiceTime] = useState<string>(() => {
+    return activeCase.serviceSelections?.serviceTime || '11:00 AM';
+  });
+  const [scheduleDuration, setScheduleDuration] = useState<string>('1.5 Hours (Standard)');
+  const [scheduleServiceVenue, setScheduleServiceVenue] = useState<string>(() => {
+    return activeCase.serviceSelections?.serviceVenueName || "Benta's Funeral Home - Chapel 1 (Main Sanctuary / Seats 140)";
+  });
+  const [customVenueName, setCustomVenueName] = useState<string>('');
+  const [scheduleViewingOption, setScheduleViewingOption] = useState<'same_day' | 'prior_evening' | 'two_day' | 'private_only' | 'none'>(() => {
+    return 'same_day';
+  });
+  const [scheduleViewingDate, setScheduleViewingDate] = useState<string>(() => {
+    return activeCase.serviceSelections?.serviceDate || '2026-09-22';
+  });
+  const [scheduleViewingHours, setScheduleViewingHours] = useState<string>('10:00 AM – 11:00 AM (Pre-Service)');
+  const [scheduleViewingParlor, setScheduleViewingParlor] = useState<'Parlor A (Seats 120)' | 'Parlor B (Seats 110)' | 'Church / External Venue' | 'Direct / No Viewing'>(() => {
+    return activeCase.serviceSelections?.viewingParlor || 'Parlor A (Seats 120)';
+  });
+  const [scheduleCortegeLineupTime, setScheduleCortegeLineupTime] = useState<string>('12:15 PM');
+  const [scheduleCortegeDepartureTime, setScheduleCortegeDepartureTime] = useState<string>('12:30 PM');
+  const [scheduleCommittalArrivalTime, setScheduleCommittalArrivalTime] = useState<string>('01:30 PM');
+  const [scheduleOfficiantName, setScheduleOfficiantName] = useState<string>(() => {
+    return activeCase.serviceSelections?.officiantName || 'Rev. Dr. Calvin O. Butts (Officiating)';
+  });
+  const [scheduleOrganistName, setScheduleOrganistName] = useState<string>(() => {
+    return activeCase.serviceSelections?.organistName || 'Prof. Gregory Hopkins (Organist & Musical Director)';
+  });
+  const [scheduleRepastVenue, setScheduleRepastVenue] = useState<string>(
+    "The Repast Room at Benta's (630 St. Nicholas Ave)"
+  );
+  const [scheduleRepastHours, setScheduleRepastHours] = useState<string>('3:00 PM – 6:00 PM (Following Committal)');
+  const [scheduleRepastEnabled, setScheduleRepastEnabled] = useState<boolean>(true);
 
   // Active Category in Step 3
   const [activeVariablesCategory, setActiveVariablesCategory] = useState<'livery' | 'merchandise' | 'flowers' | 'stationery' | 'facilities_repast' | 'cash_advances'>('livery');
@@ -137,6 +177,37 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return 'Select Date';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const dateObj = new Date(y, m, d);
+        return dateObj.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getQuickServiceDate = (daysFromToday: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromToday);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   };
 
   const handleCemeterySelected = (payload: SelectedCemeteryPayload) => {
@@ -359,6 +430,10 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
   const handleSaveToGoldenRecord = () => {
     const calculated = calculateAP47Totals(statementData);
     
+    const effectiveVenue = scheduleServiceVenue === 'custom' 
+      ? (customVenueName.trim() || 'External Sanctuary / Church') 
+      : scheduleServiceVenue;
+
     // Update Case object
     const updatedCase: GoldenRecordCase = {
       ...activeCase,
@@ -372,15 +447,28 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
           : (calculated.sectionI.H3_urnSelected ? calculated.sectionI.H3_urnModelName : 'Standard Direct Container'),
         casketPrice: calculated.sectionI.H1_casketSelected ? calculated.sectionI.H1_casketAmount : (calculated.sectionI.H3_urnSelected ? calculated.sectionI.H3_urnAmount : 0),
         crematoryOrCemeteryName: calculated.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName,
-        officiantName: calculated.sectionII.clergyChurchName || activeCase.serviceSelections.officiantName,
-        organistName: calculated.sectionII.organistMusicianName || activeCase.serviceSelections.organistName
+        serviceDate: scheduleServiceDate,
+        serviceTime: scheduleServiceTime,
+        serviceVenueName: effectiveVenue,
+        viewingParlor: scheduleViewingParlor,
+        officiantName: scheduleOfficiantName || calculated.sectionII.clergyChurchName || activeCase.serviceSelections.officiantName,
+        organistName: scheduleOrganistName || calculated.sectionII.organistMusicianName || activeCase.serviceSelections.organistName
       },
+      cortegeRoute: activeCase.cortegeRoute ? {
+        ...activeCase.cortegeRoute,
+        serviceVenueName: effectiveVenue,
+        serviceTime: scheduleServiceTime,
+        dropoffTime: scheduleCommittalArrivalTime,
+        dropoffLocationName: calculated.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || activeCase.cortegeRoute.dropoffLocationName || 'Cemetery',
+        returnLocationName: scheduleRepastEnabled ? scheduleRepastVenue : activeCase.cortegeRoute.returnLocationName,
+        returnRequired: scheduleRepastEnabled
+      } : undefined,
       notes: [
         {
           id: `note-${Date.now()}`,
           author: 'Jason Benta, LFD #08850',
           timestamp: 'Just now',
-          text: `📜 Statement of Goods and Services Selected (Form AP-47) finalized. Total Funeral Charges: $${calculated.sectionIII.totalFuneralCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })} (Funeral Home: $${calculated.sectionI.totalFuneralHomeCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })}, Cash Advances: $${calculated.sectionII.totalCashAdvances.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Balance Due: $${calculated.sectionIII.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`
+          text: `📜 Statement of Goods (Form AP-47) finalized & synchronized. Service scheduled for ${formatDisplayDate(scheduleServiceDate)} at ${scheduleServiceTime} (${effectiveVenue}). Total Charges: $${calculated.sectionIII.totalFuneralCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })} (FH: $${calculated.sectionI.totalFuneralHomeCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })}, Cash Advances: $${calculated.sectionII.totalCashAdvances.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Balance Due: $${calculated.sectionIII.balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`
         },
         ...activeCase.notes
       ]
@@ -401,14 +489,14 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
         recipientPhone: activeCase.informant.phone,
         channel: 'sms',
         type: 'contract_signing',
-        title: `Itemized Funeral Statement (AP-47) Updated`,
-        bodyText: `Dear ${activeCase.informant.fullName}, your itemized Statement of Goods & Services Selected (Form AP-47) for ${activeCase.decedent.legalName} has been synchronized. Total charges: $${calculated.sectionIII.totalFuneralCharges.toFixed(2)}. Access your copy in the Family Portal at e-bfh.com/case/${activeCase.caseNumber}.`,
+        title: `Service Schedule & Itemized Statement (AP-47) Confirmed`,
+        bodyText: `Dear ${activeCase.informant.fullName}, the service schedule for ${activeCase.decedent.legalName} is confirmed for ${formatDisplayDate(scheduleServiceDate)} at ${scheduleServiceTime} (${effectiveVenue}). Itemized Statement (Form AP-47) total: $${calculated.sectionIII.totalFuneralCharges.toFixed(2)}. Review in Family Portal: e-bfh.com/case/${activeCase.caseNumber}.`,
         sentAt: 'Just now',
         status: 'delivered'
       });
     }
 
-    showToast('✓ Statement of Goods (Form AP-47) saved & synchronized to Golden Record!');
+    showToast('✓ Statement of Goods & Master Schedule saved & synchronized to Golden Record!');
     setIsFamilyPortalPinModalOpen(true);
   };
 
@@ -907,6 +995,494 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                       </div>
                     </div>
                   )}
+                </div>
+
+              </div>
+
+              {/* ------------------------------------------------------------- */}
+              {/* STEP 2.A: MASTER SERVICE DATE, TIMING & VENUE COORDINATOR */}
+              {/* ------------------------------------------------------------- */}
+              <div className="bg-gradient-to-br from-neutral-900 via-[#1f1616] to-[#120a0a] text-white p-6 rounded-2xl border-2 border-amber-500/50 shadow-xl space-y-6">
+                
+                {/* Header Banner */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[#991b1b] text-amber-300 flex items-center justify-center font-bold text-2xl shadow-lg border border-amber-400/30">
+                      📅
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                          Step 2.A Logistics Coordinator
+                        </span>
+                        <span className="text-[10px] text-neutral-400 font-mono flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span>Live Golden Record & Calendar Sync</span>
+                        </span>
+                      </div>
+                      <h4 className="font-serif-title text-lg font-bold text-white mt-1 flex items-center gap-2">
+                        <span>Master Service Date, Timing & Venue Coordinator</span>
+                      </h4>
+                      <p className="text-xs text-neutral-300">
+                        Select the official ceremony date, start time, viewing hours, ceremonial sanctuary, and cortege committal timetable. Coordinates all downstream staff, livery, webcasting, and Form AP-47 schedules.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-amber-400/30 text-right">
+                    <div className="text-[10px] text-neutral-400 uppercase tracking-wider font-bold">Confirmed Service Window</div>
+                    <div className="font-mono text-xs font-bold text-amber-300 flex items-center gap-1.5 justify-end mt-0.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{formatDisplayDate(scheduleServiceDate)} • {scheduleServiceTime}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 1: Service Date, Time & Sanctuary Venue */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  
+                  {/* Left Column: Date & Time Picker */}
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4" />
+                        <span>Funeral / Memorial Ceremony Date</span>
+                      </span>
+                      <span className="text-[11px] font-mono text-neutral-300 bg-white/10 px-2 py-0.5 rounded">
+                        {scheduleDuration}
+                      </span>
+                    </div>
+
+                    {/* Date Input with Live Day of Week Display */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={scheduleServiceDate}
+                          onChange={(e) => {
+                            setScheduleServiceDate(e.target.value);
+                            if (scheduleViewingOption === 'same_day') {
+                              setScheduleViewingDate(e.target.value);
+                            }
+                          }}
+                          className="w-full bg-neutral-900 border border-neutral-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold focus:outline-hidden"
+                        />
+                      </div>
+
+                      {/* Formatted Date Banner */}
+                      <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/30 flex items-center justify-between text-xs">
+                        <span className="text-neutral-400">Scheduled Day:</span>
+                        <span className="font-bold text-amber-300 font-serif-title text-sm">
+                          {formatDisplayDate(scheduleServiceDate)}
+                        </span>
+                      </div>
+
+                      {/* Quick Date Chips */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-neutral-400 block font-semibold uppercase tracking-wider">Quick Preset Dates:</span>
+                        <div className="flex flex-wrap gap-1.5 text-xs">
+                          {[
+                            { label: 'Today', days: 0 },
+                            { label: 'Tomorrow', days: 1 },
+                            { label: '+3 Days', days: 3 },
+                            { label: '+5 Days (Harlem Standard)', days: 5 },
+                            { label: '+7 Days', days: 7 }
+                          ].map((preset) => {
+                            const dateStr = getQuickServiceDate(preset.days);
+                            const isActive = scheduleServiceDate === dateStr;
+                            return (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => {
+                                  setScheduleServiceDate(dateStr);
+                                  if (scheduleViewingOption === 'same_day') {
+                                    setScheduleViewingDate(dateStr);
+                                  }
+                                  showToast(`📅 Service date set to ${preset.label} (${dateStr})`);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                                  isActive
+                                    ? 'bg-[#991b1b] text-white border-amber-400 shadow-xs'
+                                    : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Start Time & Duration Picker */}
+                    <div className="pt-3 border-t border-white/10 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                          <Clock className="w-4 h-4" />
+                          <span>Ceremony Start Time:</span>
+                        </span>
+                        <select
+                          value={scheduleDuration}
+                          onChange={(e) => setScheduleDuration(e.target.value)}
+                          className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs rounded-lg px-2 py-1 font-sans focus:outline-hidden"
+                        >
+                          <option value="1 Hour">1 Hour Duration</option>
+                          <option value="1.5 Hours (Standard)">1.5 Hours (Standard)</option>
+                          <option value="2 Hours">2 Hours Duration</option>
+                          <option value="3 Hours (Mass/Extended)">3 Hours (Solemn Mass)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={scheduleServiceTime}
+                          onChange={(e) => setScheduleServiceTime(e.target.value)}
+                          placeholder="e.g. 11:00 AM"
+                          className="w-full bg-neutral-900 border border-neutral-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2 text-sm font-mono font-bold focus:outline-hidden"
+                        />
+                      </div>
+
+                      {/* Quick Time Chips */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {['09:30 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:00 PM', '02:00 PM', '06:00 PM'].map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => {
+                              setScheduleServiceTime(t);
+                              showToast(`⏰ Service start time set to ${t}`);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer border ${
+                              scheduleServiceTime === t
+                                ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                                : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Right Column: Ceremonial Sanctuary & Leadership */}
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4" />
+                      <span>Ceremonial Sanctuary / Chapel Venue</span>
+                    </span>
+
+                    <div className="space-y-2">
+                      <select
+                        value={scheduleServiceVenue}
+                        onChange={(e) => setScheduleServiceVenue(e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 focus:border-amber-400 text-white rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-hidden"
+                      >
+                        <option value="Benta's Funeral Home - Chapel 1 (Main Sanctuary / Seats 140)">
+                          🏛️ Benta's Funeral Home - Chapel 1 (Main Sanctuary / Seats 140)
+                        </option>
+                        <option value="Benta's Funeral Home - Chapel 2 (Parlor B / Seats 90)">
+                          🏛️ Benta's Funeral Home - Chapel 2 (Parlor B / Seats 90)
+                        </option>
+                        <option value="Abyssinian Baptist Church (132 W 138th St, Harlem)">
+                          ⛪ Abyssinian Baptist Church (132 W 138th St, Harlem)
+                        </option>
+                        <option value="Canaan Baptist Church of Christ (132 W 116th St, Harlem)">
+                          ⛪ Canaan Baptist Church of Christ (132 W 116th St, Harlem)
+                        </option>
+                        <option value="St. Charles Borromeo Church (211 W 141st St, Harlem)">
+                          ⛪ St. Charles Borromeo Roman Catholic Church (211 W 141st St)
+                        </option>
+                        <option value="Mother A.M.E. Zion Church (140 W 137th St, Harlem)">
+                          ⛪ Mother A.M.E. Zion Church (140 W 137th St, Harlem)
+                        </option>
+                        <option value="Cathedral of St. John the Divine (1047 Amsterdam Ave)">
+                          ⛪ Cathedral of St. John the Divine (1047 Amsterdam Ave)
+                        </option>
+                        <option value="First Corinthian Baptist Church (1912 Adam Clayton Powell Jr Blvd)">
+                          ⛪ First Corinthian Baptist Church (1912 ACP Blvd)
+                        </option>
+                        <option value="Graveside Direct (At Cemetery Gate Only)">
+                          🌿 Graveside Committal Direct (At Cemetery Gate Only)
+                        </option>
+                        <option value="custom">
+                          ✏️ Custom External Sanctuary / Church (Enter Below)
+                        </option>
+                      </select>
+
+                      {scheduleServiceVenue === 'custom' && (
+                        <input
+                          type="text"
+                          value={customVenueName}
+                          onChange={(e) => setCustomVenueName(e.target.value)}
+                          placeholder="Enter Church Name & Street Address..."
+                          className="w-full bg-neutral-900 border border-amber-400 text-white rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-hidden"
+                        />
+                      )}
+                    </div>
+
+                    {/* Clergy & Organist Leadership Assignments */}
+                    <div className="pt-2 border-t border-white/10 space-y-3">
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-neutral-300 flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Officiating Clergy / Minister:</span>
+                        </span>
+                        <input
+                          type="text"
+                          value={scheduleOfficiantName}
+                          onChange={(e) => setScheduleOfficiantName(e.target.value)}
+                          placeholder="e.g. Rev. Dr. Calvin O. Butts"
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-hidden"
+                        />
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {['Rev. Dr. Calvin O. Butts', 'Pastor Michael A. Walrond Jr.', 'Father Gregory Chisholm', 'Family Minister'].map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => setScheduleOfficiantName(name)}
+                              className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-[10px] text-neutral-300 border border-white/10"
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-neutral-300 flex items-center gap-1">
+                          <span>🎹 Organist & Musical Director:</span>
+                        </span>
+                        <input
+                          type="text"
+                          value={scheduleOrganistName}
+                          onChange={(e) => setScheduleOrganistName(e.target.value)}
+                          placeholder="e.g. Prof. Gregory Hopkins"
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-hidden"
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* Section 2: Public Visitation & Wake Coordinator */}
+                <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <span>👁️ Public Visitation & Wake Coordinator</span>
+                    </span>
+                    <span className="text-[11px] text-neutral-400">
+                      Select viewing schedule structure & parlor assignment
+                    </span>
+                  </div>
+
+                  {/* Viewing Structure Chips */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    {[
+                      { id: 'same_day', label: '🌅 Same-Day Pre-Service', hours: '10:00 AM – 11:00 AM (Pre-Service)' },
+                      { id: 'prior_evening', label: '🌙 Prior Evening Wake', hours: '4:00 PM – 8:00 PM' },
+                      { id: 'two_day', label: '🏛️ Two-Day Extended', hours: '3:00 PM – 7:00 PM & 10:00 AM Service' },
+                      { id: 'private_only', label: '🔒 Private Family Only', hours: '10:30 AM – 11:00 AM (30 Mins)' },
+                      { id: 'none', label: '🚫 Direct / No Viewing', hours: 'Direct Disposition' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setScheduleViewingOption(opt.id as any);
+                          setScheduleViewingHours(opt.hours);
+                          if (opt.id === 'prior_evening') {
+                            setScheduleViewingDate(getQuickServiceDate(-1));
+                          } else if (opt.id === 'same_day') {
+                            setScheduleViewingDate(scheduleServiceDate);
+                          }
+                          showToast(`👁️ Viewing set to: ${opt.label}`);
+                        }}
+                        className={`p-2 rounded-xl text-left border text-xs transition cursor-pointer ${
+                          scheduleViewingOption === opt.id
+                            ? 'bg-[#991b1b] text-white border-amber-400 shadow-md font-bold'
+                            : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
+                        }`}
+                      >
+                        <div>{opt.label}</div>
+                        <div className="text-[10px] text-neutral-400 font-mono mt-0.5 truncate">{opt.hours}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {scheduleViewingOption !== 'none' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase">Viewing Date:</label>
+                        <input
+                          type="date"
+                          value={scheduleViewingDate}
+                          onChange={(e) => setScheduleViewingDate(e.target.value)}
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-xs font-mono font-bold focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase">Viewing Hours Window:</label>
+                        <input
+                          type="text"
+                          value={scheduleViewingHours}
+                          onChange={(e) => setScheduleViewingHours(e.target.value)}
+                          placeholder="e.g. 10:00 AM – 11:00 AM"
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-xs font-mono font-bold focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase">Viewing Facility / Parlor:</label>
+                        <select
+                          value={scheduleViewingParlor}
+                          onChange={(e) => setScheduleViewingParlor(e.target.value as any)}
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-hidden"
+                        >
+                          <option value="Parlor A (Seats 120)">Parlor A (Seats 120)</option>
+                          <option value="Parlor B (Seats 110)">Parlor B (Seats 110)</option>
+                          <option value="Church / External Venue">Church / External Venue</option>
+                          <option value="Direct / No Viewing">Direct / No Viewing</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 3: Cortege Departure & Cemetery Committal Cutoff Coordinator */}
+                <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <span>🚘 Cortege Departure & Cemetery Committal Timetable</span>
+                    </span>
+                    <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Compliant with Tri-State Cemetery Bylaws</span>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                    <div className="space-y-1 bg-black/40 p-2.5 rounded-lg border border-white/5">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase block">1. Cortege Lineup:</span>
+                      <input
+                        type="text"
+                        value={scheduleCortegeLineupTime}
+                        onChange={(e) => setScheduleCortegeLineupTime(e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 text-amber-300 rounded px-2 py-1 font-mono font-bold"
+                      />
+                      <span className="text-[10px] text-neutral-400">At Chapel / Church Entrance</span>
+                    </div>
+
+                    <div className="space-y-1 bg-black/40 p-2.5 rounded-lg border border-white/5">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase block">2. Cortege Departure:</span>
+                      <input
+                        type="text"
+                        value={scheduleCortegeDepartureTime}
+                        onChange={(e) => setScheduleCortegeDepartureTime(e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 text-amber-300 rounded px-2 py-1 font-mono font-bold"
+                      />
+                      <span className="text-[10px] text-neutral-400">Lead Car & Hearse Escort</span>
+                    </div>
+
+                    <div className="space-y-1 bg-black/40 p-2.5 rounded-lg border border-white/5">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase block">3. Cemetery Gate Arrival:</span>
+                      <input
+                        type="text"
+                        value={scheduleCommittalArrivalTime}
+                        onChange={(e) => setScheduleCommittalArrivalTime(e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 text-amber-300 rounded px-2 py-1 font-mono font-bold"
+                      />
+                      <span className="text-[10px] text-neutral-400">Committal Service at Graveside</span>
+                    </div>
+
+                    <div className="space-y-1 bg-black/40 p-2.5 rounded-lg border border-white/5 flex flex-col justify-between">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase block">4. Gate Cutoff Check:</span>
+                      <div className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>Woodlawn/Ferncliff Cutoff: 2:30 PM (OK)</span>
+                      </div>
+                      <span className="text-[9px] text-neutral-400 font-mono">10 NYCRR Pass-Through Certified</span>
+                    </div>
+                  </div>
+
+                  {/* Repast Gathering Toggle */}
+                  <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="repastCheck"
+                        checked={scheduleRepastEnabled}
+                        onChange={(e) => setScheduleRepastEnabled(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#991b1b] focus:ring-[#991b1b] bg-neutral-900 border-neutral-700"
+                      />
+                      <label htmlFor="repastCheck" className="font-bold text-neutral-200 cursor-pointer">
+                        Include Post-Committal Repast Gathering in Schedule
+                      </label>
+                    </div>
+
+                    {scheduleRepastEnabled && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          value={scheduleRepastVenue}
+                          onChange={(e) => setScheduleRepastVenue(e.target.value)}
+                          placeholder="Repast Venue..."
+                          className="bg-neutral-900 border border-neutral-700 text-white rounded-lg px-2.5 py-1 text-xs font-medium w-64"
+                        />
+                        <input
+                          type="text"
+                          value={scheduleRepastHours}
+                          onChange={(e) => setScheduleRepastHours(e.target.value)}
+                          placeholder="Repast Hours..."
+                          className="bg-neutral-900 border border-neutral-700 text-amber-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold w-48"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* Section 4: Live Master Schedule Timetable Ribbon */}
+                <div className="bg-black/60 p-4 rounded-xl border border-amber-400/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Live Confirmed Timetable Flow for Case #{activeCase.caseNumber} ({activeCase.decedent.legalName}):</span>
+                    </span>
+                    <span className="text-[10px] text-neutral-400 font-mono">Auto-dispatches to Staff & Family</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
+                    <div className="p-2 rounded-lg bg-white/5 border border-white/10 space-y-0.5">
+                      <div className="text-[10px] text-amber-400 font-bold uppercase">1. Visitation</div>
+                      <div className="font-bold text-white text-[11px] truncate">{scheduleViewingHours}</div>
+                      <div className="text-[10px] text-neutral-400 truncate">{scheduleViewingParlor}</div>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-white/5 border border-white/10 space-y-0.5">
+                      <div className="text-[10px] text-amber-400 font-bold uppercase">2. Ceremony</div>
+                      <div className="font-bold text-white text-[11px] truncate">{formatDisplayDate(scheduleServiceDate)} • {scheduleServiceTime}</div>
+                      <div className="text-[10px] text-neutral-400 truncate">{scheduleServiceVenue === 'custom' ? customVenueName : scheduleServiceVenue}</div>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-white/5 border border-white/10 space-y-0.5">
+                      <div className="text-[10px] text-amber-400 font-bold uppercase">3. Committal</div>
+                      <div className="font-bold text-white text-[11px] truncate">{scheduleCommittalArrivalTime} Arrival</div>
+                      <div className="text-[10px] text-neutral-400 truncate">{statementData.sectionII.cemeteryOrCrematoryName || activeCase.serviceSelections.crematoryOrCemeteryName || "Woodlawn Cemetery"}</div>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-white/5 border border-white/10 space-y-0.5">
+                      <div className="text-[10px] text-amber-400 font-bold uppercase">4. Repast</div>
+                      <div className="font-bold text-white text-[11px] truncate">{scheduleRepastEnabled ? scheduleRepastHours : 'None Scheduled'}</div>
+                      <div className="text-[10px] text-neutral-400 truncate">{scheduleRepastEnabled ? scheduleRepastVenue : 'Direct Dismissal'}</div>
+                    </div>
+                  </div>
                 </div>
 
               </div>
