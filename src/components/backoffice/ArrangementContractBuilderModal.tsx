@@ -46,7 +46,8 @@ import {
   Layers,
   Tag,
   Image as ImageIcon,
-  HandCoins
+  HandCoins,
+  Key
 } from 'lucide-react';
 
 
@@ -77,6 +78,7 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
 
   // Wizard Step State (1: Biography/Story, 2: Service Type & Baseline, 3: Variables & Custom Items, 4: Live AP-47 Contract Preview)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  const [isFamilyPortalPinModalOpen, setIsFamilyPortalPinModalOpen] = useState(false);
 
   // Active Category in Step 3
   const [activeVariablesCategory, setActiveVariablesCategory] = useState<'livery' | 'merchandise' | 'flowers' | 'stationery' | 'facilities_repast' | 'cash_advances'>('livery');
@@ -392,6 +394,7 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
     }
 
     showToast('✓ Statement of Goods (Form AP-47) saved & synchronized to Golden Record!');
+    setIsFamilyPortalPinModalOpen(true);
   };
 
   const handleCopyContractSummary = () => {
@@ -3313,6 +3316,109 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
             setStatementData(updated);
           }}
         />
+      )}
+
+      {/* Family Portal PIN & Onboarding Guidance Modal */}
+      {isFamilyPortalPinModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-neutral-200">
+            
+            <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+                  <Key className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Arrangement Finalized & Locked
+                  </span>
+                  <h3 className="font-serif-title text-xl font-bold text-neutral-900 pt-0.5">
+                    Family Portal PIN & Benefits Guide
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFamilyPortalPinModalOpen(false)}
+                className="p-2 rounded-full hover:bg-neutral-100 text-neutral-500 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-amber-950 uppercase tracking-wider block">
+                    Case Access PIN for {activeCase.informant.fullName}
+                  </span>
+                  <p className="text-xs text-amber-800">
+                    Share this secure PIN with the family or use Master Manager PIN <code className="font-mono font-bold bg-amber-200 px-1 py-0.5 rounded">3995</code>.
+                  </p>
+                </div>
+                <div className="bg-neutral-900 text-amber-300 font-mono text-2xl font-black px-4 py-2 rounded-xl border border-amber-400/40 tracking-widest shadow-inner">
+                  1948
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`Benta's Funeral Home - Family Portal Access\nCase: ${activeCase.caseNumber} (${activeCase.decedent.legalName})\nAccess URL: https://e-bfh.com\nFamily PIN: 1948 (or Manager PIN: 3995)`);
+                    showToast('✓ Family Portal credentials copied to clipboard!');
+                  }}
+                  className="w-full bg-white hover:bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs py-2 rounded-xl transition flex items-center justify-center space-x-1.5 shadow-xs"
+                >
+                  <Copy className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Copy Family Credentials & Portal Link</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Funeral Director Onboarding Steps */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
+                Funeral Director Onboarding Checklist:
+              </h4>
+              <ul className="space-y-2 text-xs text-neutral-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold">1.</span>
+                  <span><strong>Hand over PIN:</strong> Provide PIN <code className="font-mono text-neutral-900">1948</code> to {activeCase.informant.fullName}.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold">2.</span>
+                  <span><strong>Guide Through Portal:</strong> Open the Family Portal on the office tablet or family phone and demonstrate the portal's advantages.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold">3.</span>
+                  <span><strong>Showcase 360 Voice Archive:</strong> Demonstrate the living audio studio with 4-pillar prompts (Joy, Pain, Sacrifice, Action) and AI poem formatting.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold">4.</span>
+                  <span><strong>Preview Keepsake Volume:</strong> Show how voice stanzas and photos compile into the museum-grade Heirloom Coffee Table Book with scan-to-stream QR codes.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold">5.</span>
+                  <span><strong>Transparent Financials:</strong> Explain that relatives can review the itemized AP-47 ledger and contribute via Split-Pay.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFamilyPortalPinModalOpen(false);
+                  onClose();
+                }}
+                className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition shadow-md"
+              >
+                Close & Return to Dashboard
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
     </div>

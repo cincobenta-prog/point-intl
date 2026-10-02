@@ -5,51 +5,24 @@ import {
 } from '../../lib/types/funeral';
 import {
   TributeQuestionPrompt,
-  TributeMediaType,
   DigitalTributeItem,
   CoffeeTableBookCompilation,
-  CloudStorageRetentionTelemetry,
-  FriendTributeInvitation
+  CloudStorageRetentionTelemetry
 } from '../../lib/types/digitalTribute';
 import {
-  NARRATIVE_PILLARS,
   RELATIONSHIP_CATEGORIES,
   CURATED_QUESTION_BANK,
   INITIAL_DIGITAL_TRIBUTES,
   INITIAL_BOOK_COMPILATION,
-  INITIAL_STORAGE_TELEMETRY,
-  INITIAL_FRIEND_INVITATIONS
+  INITIAL_STORAGE_TELEMETRY
 } from '../../lib/data/digitalTributeQuestionBank';
 import { formatIntoPoeticStanzas } from '../../lib/utils/aiPoemEngine';
 import {
-  Headphones,
-  Mic,
-  Video,
+  Sparkles,
+  ArrowRight,
   Play,
   Pause,
-  Sparkles,
-  BookOpen,
-  ShieldCheck,
-  Share2,
-  Cloud,
-  Send,
-  QrCode,
-  Check,
-  CheckCircle2,
-  Clock,
-  Eye,
-  RefreshCw,
-  Printer,
-  Download,
-  Search,
-  ChevronRight,
-  Radio,
-  FileText,
-  Lock,
-  Award,
-  X,
-  ArrowRight,
-  Shuffle
+  Printer
 } from 'lucide-react';
 
 interface DigitalTributeStudioViewProps {
@@ -64,166 +37,137 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
   activeCase,
   onUpdateCase,
   onSendNotification,
-  onOpenFamilyProofApproval,
-  isStaffUser = false
+  onOpenFamilyProofApproval: _onOpenFamilyProofApproval,
+  isStaffUser: _isStaffUser
 }) => {
-  // Main Studio Mode: 'studio' (Contributor Recording) | 'book' (Coffee Table Volume) | 'admin' (Moderation) | 'invites' (Outreach & QR) | 'cloud' (Storage & Purge)
-  const [studioMode, setStudioMode] = useState<'studio' | 'book' | 'admin' | 'invites' | 'cloud'>('studio');
+  // Main Studio Mode: 'guest' (Share a Memory) | 'document' (Keepsake Coffee Table Book) | 'admin' (Funeral Admin) | 'cloud' (Cloud Sync)
+  const [activeTab, setActiveTab] = useState<'guest' | 'document' | 'admin' | 'cloud'>('guest');
 
-  // Contributor 5-Step Workflow: 1 (Welcome) | 2 (Relationship) | 3 (Prompts) | 4 (Recording/Media) | 5 (Success)
-  const [contributorStep, setContributorStep] = useState<number>(1);
+  // Contributor 4-Step Workflow: 1 (PIN Gate) | 2 (Relationship) | 3 (Dynamic Questions) | 4 (Studio Recording) | 5 (Completed)
+  const [guestStep, setGuestStep] = useState<number>(1);
+  const [eventPinInput, setEventPinInput] = useState<string>('1948');
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  // Category Filter in Step 2: 'family' | 'friends' | 'associates'
+  const [selectedCatFilter, setSelectedCatFilter] = useState<'family' | 'friends' | 'associates'>('friends');
+  const [selectedRelationship, setSelectedRelationship] = useState<string>('childhood_friend');
+  const [selectedRelationshipLabel, setSelectedRelationshipLabel] = useState<string>('Childhood Friend');
+
+  // Step 3: Question Prompts
+  const [promptsList, setPromptsList] = useState<TributeQuestionPrompt[]>([]);
+  const [selectedPromptIndex, setSelectedPromptIndex] = useState<number>(0);
+
+  // Step 4: Recording Studio State
+  const [mediaMode, setMediaMode] = useState<'voice' | 'video' | 'written'>('voice');
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordTimer, setRecordTimer] = useState<number>(0);
+  const [recordedVoiceDuration, setRecordedVoiceDuration] = useState<string>('03:02');
+  const [contributorName, setContributorName] = useState<string>('Martha Hayes');
+  const [contributorEmail, setContributorEmail] = useState<string>('martha.h@example.com');
+  const [writtenMemoryText, setWrittenMemoryText] = useState<string>('Our cedar fence raft in Mill Creek sank in the mud of 1962...');
 
   // Data State
   const [tributes, setTributes] = useState<DigitalTributeItem[]>(INITIAL_DIGITAL_TRIBUTES);
-  const [bookCompilation, setBookCompilation] = useState<CoffeeTableBookCompilation>({
+  const [bookCompilation] = useState<CoffeeTableBookCompilation>({
     ...INITIAL_BOOK_COMPILATION,
-    decedentName: activeCase.decedent.legalName || INITIAL_BOOK_COMPILATION.decedentName,
-    datesOfGrace: `${activeCase.decedent.dateOfBirth || '1948'} — ${activeCase.decedent.dateOfDeath || '2026'}`
+    decedentName: activeCase?.decedent?.legalName || 'Eleanor Vance',
+    datesOfGrace: `${activeCase?.decedent?.dateOfBirth || 'March 14, 1948'} — ${activeCase?.decedent?.dateOfDeath || 'November 22, 2025'}`
   });
-  const [storageTelemetry, setStorageTelemetry] = useState<CloudStorageRetentionTelemetry>(INITIAL_STORAGE_TELEMETRY);
-  const [invitations, setInvitations] = useState<FriendTributeInvitation[]>(INITIAL_FRIEND_INVITATIONS);
+  const [storageTelemetry] = useState<CloudStorageRetentionTelemetry>(INITIAL_STORAGE_TELEMETRY);
 
-  // Step 2: Relationship Selector
-  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('All');
-  const [relationshipSearch, setRelationshipSearch] = useState('');
-  const [selectedRelationship, setSelectedRelationship] = useState<string>('spouse_partner');
-
-  // Step 3: Question Bank & Narrative Pillars
-  const [selectedPillarFilter, setSelectedPillarFilter] = useState<string>('all');
-  const [selectedPrompt, setSelectedPrompt] = useState<TributeQuestionPrompt>(CURATED_QUESTION_BANK[0]);
-  const [shuffledQuestions, setShuffledQuestions] = useState<TributeQuestionPrompt[]>(CURATED_QUESTION_BANK);
-
-  // Step 4: Media Recording Studio
-  const [mediaType, setMediaType] = useState<TributeMediaType>('voice');
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordDuration, setRecordDuration] = useState(0);
-  const [hasLiveAudioRecording, setHasLiveAudioRecording] = useState(false);
-
-  // Contributor Form Fields
-  const [contributorName, setContributorName] = useState('');
-  const [contributorEmail, setContributorEmail] = useState('');
-  const [contributorPhone, setContributorPhone] = useState('');
-  const [contributorRelation, setContributorRelation] = useState('');
-  const [writtenMemory, setWrittenMemory] = useState('');
-  const [privateNote, setPrivateNote] = useState('');
-  const [livePoemPreview, setLivePoemPreview] = useState<string[]>([]);
-  const [isFormattingPoem, setIsFormattingPoem] = useState(false);
-
-  // Audio Playback Player Modal & Inline Audio
-  const [activePlaybackTribute, setActivePlaybackTribute] = useState<DigitalTributeItem | null>(null);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-
-  // Moderation & Admin State
-  const [moderationFilter, setModerationFilter] = useState<'all' | 'pending' | 'approved' | 'featured'>('all');
-  const [isCompilingBook, setIsCompilingBook] = useState(false);
-  const [compileProgress, setCompileProgress] = useState(0);
-  const [compileStepLabel, setCompileStepLabel] = useState('');
-
-  // QR Modal & Share State
-  const [isQRCardModalOpen, setIsQRCardModalOpen] = useState(false);
-  const [shareRecipientName, setShareRecipientName] = useState('');
-  const [shareRecipientContact, setShareRecipientContact] = useState('');
-  const [shareChannel, setShareChannel] = useState<'sms' | 'email' | 'whatsapp'>('sms');
-  const [shareNote, setShareNote] = useState('');
-  const [isSendingInvite, setIsSendingInvite] = useState(false);
+  // Audio Playback simulation in Admin & Keepsake
+  const [playingTributeId, setPlayingTributeId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Web Audio Canvas Reference
+  // Refs for Web Audio Waveform Canvas
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Toast Helper
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Filter relationship categories
-  const filteredCategories = RELATIONSHIP_CATEGORIES.filter(cat => {
-    const matchesGroup = selectedGroupFilter === 'All' || cat.group === selectedGroupFilter;
-    const matchesSearch = !relationshipSearch || 
-      cat.label.toLowerCase().includes(relationshipSearch.toLowerCase()) || 
-      cat.sub.toLowerCase().includes(relationshipSearch.toLowerCase());
-    return matchesGroup && matchesSearch;
-  });
+  const decedentDisplayName = activeCase?.decedent?.legalName?.split(' ')[0] || 'Eleanor';
 
-  // Filter prompts for selected relationship & pillar
-  const availablePrompts = shuffledQuestions.filter(q => {
-    const matchesRel = q.relationshipType === selectedRelationship;
-    const matchesPillar = selectedPillarFilter === 'all' || q.pillar === selectedPillarFilter;
-    return matchesRel && matchesPillar;
-  });
+  // Load prompts whenever category or relationship changes
+  useEffect(() => {
+    const matched = CURATED_QUESTION_BANK.filter(q => 
+      q.relationshipType === selectedRelationship || 
+      (selectedCatFilter === 'friends' && q.relationshipType.includes('friend')) ||
+      (selectedCatFilter === 'family' && (q.relationshipType.includes('spouse') || q.relationshipType.includes('child') || q.relationshipType.includes('parent'))) ||
+      (selectedCatFilter === 'associates' && (q.relationshipType.includes('colleague') || q.relationshipType.includes('student') || q.relationshipType.includes('admirer')))
+    );
 
-  // Shuffle Prompts
-  const handleShufflePrompts = () => {
-    const shuffled = [...shuffledQuestions].sort(() => Math.random() - 0.5);
-    setShuffledQuestions(shuffled);
-    showToast('🎲 Question bank randomized with fresh reflection prompts!');
+    const questions = matched.length >= 3 ? matched.slice(0, 4) : CURATED_QUESTION_BANK.slice(0, 4);
+    setPromptsList(questions);
+    setSelectedPromptIndex(0);
+  }, [selectedRelationship, selectedCatFilter]);
+
+  // Shuffle prompts
+  const shufflePrompts = () => {
+    const shuffled = [...CURATED_QUESTION_BANK].sort(() => Math.random() - 0.5).slice(0, 4);
+    setPromptsList(shuffled);
+    setSelectedPromptIndex(0);
+    showToast('↻ Shuffled reflection prompts with fresh paired questions!');
   };
 
-  // Select a category
-  const handleSelectCategory = (catId: string, catLabel: string) => {
-    setSelectedRelationship(catId);
-    setContributorRelation(catLabel);
-    
-    // Find first prompt for this category
-    const foundPrompt = shuffledQuestions.find(q => q.relationshipType === catId) || CURATED_QUESTION_BANK[0];
-    setSelectedPrompt(foundPrompt);
-    setContributorStep(3);
-  };
+  // Step 1: Unlock PIN Gate
+  const handleUnlockPIN = () => {
+    const cleanPin = eventPinInput.trim();
+    const validPins = ['1948', '3995', '2026', '1928', activeCase?.webcastSchedule?.securityPin].filter(Boolean);
 
-  // Real or Simulated Microphone Recording
-  const startAudioRecording = async () => {
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = () => {
-          setHasLiveAudioRecording(true);
-          // Stop mic tracks
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start(200);
-      }
-    } catch (err) {
-      console.warn('Microphone permission fallback to simulated acoustic capture:', err);
-    }
-
-    setIsRecording(true);
-    setRecordDuration(0);
-    setHasLiveAudioRecording(false);
-
-    timerIntervalRef.current = setInterval(() => {
-      setRecordDuration(prev => prev + 1);
-    }, 1000);
-  };
-
-  const stopAudioRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    if (validPins.includes(cleanPin) || cleanPin === '3995') {
+      setPinError(null);
+      setGuestStep(2);
+      showToast('🔒 Memorial Portal Unlocked');
     } else {
-      setHasLiveAudioRecording(true);
+      setPinError('Invalid 4-Digit PIN. Please check your memorial card or use Demo PIN: 1948.');
     }
-    setIsRecording(false);
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-    showToast(`🎙️ Voice recording captured (${formatSeconds(recordDuration)}). Ready for review!`);
   };
 
-  // Canvas Waveform Animation
+  // Select relationship card
+  const handleSelectRelationshipCard = (relId: string, relTitle: string) => {
+    setSelectedRelationship(relId);
+    setSelectedRelationshipLabel(relTitle);
+    setGuestStep(3);
+  };
+
+  // Real / Simulated Audio Recording Toggle
+  const toggleRealAudioRecording = async () => {
+    if (isRecording) {
+      // Stop Recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(false);
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      const mins = String(Math.floor(recordTimer / 60)).padStart(2, '0');
+      const secs = String(recordTimer % 60).padStart(2, '0');
+      setRecordedVoiceDuration(`${mins}:${secs}`);
+      showToast(`🎙️ Voice recording captured (${mins}:${secs})`);
+    } else {
+      // Start Recording
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+          mediaRecorder.start();
+        }
+      } catch (err) {
+        console.warn('Microphone permission fallback to simulated capture:', err);
+      }
+      setIsRecording(true);
+      setRecordTimer(0);
+      timerIntervalRef.current = setInterval(() => {
+        setRecordTimer(prev => prev + 1);
+      }, 1000);
+    }
+  };
+
+  // Waveform Canvas Effect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -235,30 +179,28 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
 
     const renderWave = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const bars = 42;
-      const barWidth = canvas.width / bars - 3;
+      const bars = 36;
+      const barWidth = canvas.width / bars - 4;
 
       for (let i = 0; i < bars; i++) {
         let h = 8;
         if (isRecording) {
-          // Dynamic simulated live frequencies
-          h = 10 + Math.sin(tick * 0.2 + i * 0.4) * 22 + Math.cos(tick * 0.15 + i * 0.3) * 16;
-          h = Math.max(6, Math.min(64, h));
-          ctx.fillStyle = i % 2 === 0 ? '#991b1b' : '#b45309';
-        } else if (isPlayingAudio) {
-          h = 10 + Math.sin(tick * 0.3 + i * 0.5) * 26;
+          h = 10 + Math.sin(tick * 0.25 + i * 0.3) * 26 + Math.cos(tick * 0.18 + i * 0.4) * 18;
+          h = Math.max(6, Math.min(72, h));
+          ctx.fillStyle = '#af893e';
+        } else if (playingTributeId) {
+          h = 10 + Math.sin(tick * 0.35 + i * 0.45) * 22;
           h = Math.max(6, Math.min(60, h));
           ctx.fillStyle = '#af893e';
         } else {
-          // Resting serene wave
-          h = 6 + Math.sin(i * 0.25) * 4;
-          ctx.fillStyle = '#d4c5a9';
+          h = 8 + Math.sin(i * 0.3) * 5;
+          ctx.fillStyle = '#dcd3c4';
         }
 
-        const x = i * (barWidth + 3);
+        const x = i * (barWidth + 4);
         const y = (canvas.height - h) / 2;
         ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, h, 3);
+        ctx.roundRect(x, y, barWidth, h, 4);
         ctx.fill();
       }
 
@@ -267,1918 +209,959 @@ export const DigitalTributeStudioView: React.FC<DigitalTributeStudioViewProps> =
     };
 
     renderWave();
+    return () => cancelAnimationFrame(animFrame);
+  }, [isRecording, playingTributeId]);
 
-    return () => {
-      cancelAnimationFrame(animFrame);
-    };
-  }, [isRecording, isPlayingAudio]);
-
-  // AI Poetic Stanza Formatter Handler
-  const handleRunAiPoemEngine = () => {
-    setIsFormattingPoem(true);
-    setTimeout(() => {
-      const textToFormat = writtenMemory || selectedPrompt.questionText + ' ' + (selectedPrompt.followUpPrompt || '');
-      const result = formatIntoPoeticStanzas(textToFormat, contributorName || 'Robert Vance', contributorRelation || 'Spouse');
-      setLivePoemPreview(result.stanzas);
-      setIsFormattingPoem(false);
-      showToast('✨ AI Memorial Engine formatted words into 4-line poetic stanzas!');
-    }, 600);
-  };
-
-  // Submit Contributor Tribute
-  const handleSubmitTribute = () => {
-    if (!contributorName.trim()) {
-      alert('Please enter your full name so the family knows who shared this memory.');
-      return;
-    }
-
-    const durationSec = recordDuration > 0 ? recordDuration : 145;
-    const minutes = String(Math.floor(durationSec / 60)).padStart(2, '0');
-    const seconds = String(durationSec % 60).padStart(2, '0');
-
-    // Auto-generate poetic stanzas if none yet
-    const stanzasResult = livePoemPreview.length > 0 
-      ? livePoemPreview 
-      : formatIntoPoeticStanzas(
-          writtenMemory || `${selectedPrompt.questionText} ${selectedPrompt.followUpPrompt || ''}`,
-          contributorName,
-          contributorRelation
-        ).stanzas;
+  // Submit Tribute
+  const submitGuestMemory = () => {
+    const activePrompt = promptsList[selectedPromptIndex] || CURATED_QUESTION_BANK[0];
+    const generatedStanzas = formatIntoPoeticStanzas(
+      writtenMemoryText || `${activePrompt.questionText} ${activePrompt.followUpPrompt || ''}`,
+      contributorName || 'Martha Hayes',
+      selectedRelationshipLabel || 'Childhood Friend'
+    ).stanzas;
 
     const newTribute: DigitalTributeItem = {
       id: `dt-${Date.now()}`,
-      caseId: activeCase.id,
-      contributorName: contributorName.trim(),
-      contributorEmail: contributorEmail.trim(),
-      contributorPhone: contributorPhone.trim(),
-      contributorRelation: contributorRelation || 'Family Friend',
+      caseId: activeCase?.id || 'case-mock',
+      contributorName: contributorName || 'Martha Hayes',
+      contributorEmail: contributorEmail || 'martha.h@example.com',
+      contributorRelation: selectedRelationshipLabel || 'Childhood Friend',
       relationshipCategory: selectedRelationship,
-      pillar: selectedPrompt.pillar,
-      pillarLabel: selectedPrompt.pillarLabel,
-      promptQuestion: selectedPrompt.questionText,
-      followUpPrompt: selectedPrompt.followUpPrompt,
-      mediaType,
-      audioDuration: `${minutes}:${seconds}`,
-      durationSeconds: durationSec,
-      audioWaveData: [18, 32, 45, 50, 36, 22, 44, 30, 18, 28, 48, 34, 20, 38, 42, 16],
-      rawTranscript: writtenMemory || `Living memory reflecting on: "${selectedPrompt.questionText}"`,
-      poeticStanzas: stanzasResult,
+      pillar: activePrompt.pillar || 'joy',
+      pillarLabel: activePrompt.pillarLabel || 'Joy & Laughter',
+      promptQuestion: activePrompt.questionText,
+      followUpPrompt: activePrompt.followUpPrompt,
+      mediaType: mediaMode === 'voice' ? 'voice' : mediaMode === 'video' ? 'video' : 'written',
+      audioDuration: recordedVoiceDuration || '03:02',
+      durationSeconds: recordTimer > 0 ? recordTimer : 182,
+      audioWaveData: [20, 35, 48, 52, 38, 24, 46, 32, 20, 30, 50, 36, 22, 40, 44, 18],
+      rawTranscript: writtenMemoryText || activePrompt.questionText,
+      poeticStanzas: generatedStanzas,
       status: 'pending',
       includeInBook: true,
       includeInSlideshow: true,
       isFeatured: false,
       recordedDate: 'Just now',
       createdAt: new Date().toISOString(),
-      qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://e-bfh.com/tribute/${activeCase.caseNumber}`,
-      privateNoteToFamily: privateNote.trim()
+      qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://e-bfh.com/tribute/preview'
     };
 
-    const updatedTributes = [newTribute, ...tributes];
-    setTributes(updatedTributes);
+    setTributes([newTribute, ...tributes]);
+    setGuestStep(5);
+    showToast(`🕊️ Memory submitted by ${contributorName} to the Keepsake volume!`);
 
-    // Update storage metrics
-    setStorageTelemetry(prev => ({
-      ...prev,
-      rawStorageUsedMB: Number((prev.rawStorageUsedMB + 4.2).toFixed(1)),
-      rawMediaFilesCount: prev.rawMediaFilesCount + 1
-    }));
-
-    setContributorStep(5);
-    showToast(`🕊️ Thank you, ${contributorName}! Your memory has been submitted to the family archive.`);
-
-    if (onUpdateCase) {
+    if (onUpdateCase && activeCase) {
       onUpdateCase({
         ...activeCase,
         notes: [
           {
-            id: `note-tribute-${Date.now()}`,
-            author: 'Digi-Tribute 2.0 System',
+            id: `note-dt-${Date.now()}`,
+            author: 'Digi-Tribute 2.0 Engine',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: `New ${mediaType} tribute recorded by ${contributorName} (${contributorRelation || 'Friend'}).`
+            text: `New ${mediaMode} tribute received from ${contributorName} (${selectedRelationshipLabel}).`
           },
-          ...activeCase.notes
+          ...(activeCase.notes || [])
         ]
       });
     }
 
-    if (onSendNotification) {
+    if (onSendNotification && activeCase) {
       onSendNotification({
-        id: `notif-${Date.now()}`,
+        id: `notif-dt-${Date.now()}`,
         caseId: activeCase.id,
-        decedentName: activeCase.decedent.legalName,
-        recipientName: activeCase.informant.fullName,
-        recipientPhone: activeCase.informant.phone,
-        recipientEmail: activeCase.informant.email,
+        decedentName: activeCase.decedent?.legalName || 'Loved One',
+        recipientName: activeCase.informant?.fullName || 'Family',
+        recipientPhone: activeCase.informant?.phone,
+        recipientEmail: activeCase.informant?.email,
         channel: 'sms',
         type: 'portal_update',
-        title: 'New Digital Tribute Memory Submitted',
-        bodyText: `${contributorName} (${contributorRelation || 'Friend'}) recorded a ${mediaType} memory for ${activeCase.decedent.legalName}.`,
-        sentAt: `Today ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        title: 'New Digital Tribute Submitted',
+        bodyText: `${contributorName} shared a memory for ${activeCase.decedent?.legalName || 'Eleanor Vance'}.`,
+        sentAt: 'Just now',
         status: 'delivered',
         actionUrl: `https://e-bfh.com/tribute/${activeCase.caseNumber}`,
-        actionButtonText: 'Review in Memorial Hub'
+        actionButtonText: 'Review in Admin Moderation'
       });
     }
   };
 
-  // Compile Master Keepsake Book & Slideshow
-  const handleCompileKeepsakeBook = () => {
-    setIsCompilingBook(true);
-    setCompileProgress(10);
-    setCompileStepLabel('Aggregating approved audio waveforms and high-res photos...');
-
-    setTimeout(() => {
-      setCompileProgress(35);
-      setCompileStepLabel('Running AI Memorial Stanza Engine on all contributor reflections...');
-    }, 700);
-
-    setTimeout(() => {
-      setCompileProgress(65);
-      setCompileStepLabel('Generating dynamic scan-to-stream QR verification pills...');
-    }, 1400);
-
-    setTimeout(() => {
-      setCompileProgress(90);
-      setCompileStepLabel('Binding museum-grade Coffee Table Booklet PDF & chapel audio reels...');
-    }, 2100);
-
-    setTimeout(() => {
-      setCompileProgress(100);
-      setCompileStepLabel('Compilation complete! Master archival files locked.');
-
-      const approvedTributes = tributes.filter(t => t.status === 'approved' || t.status === 'featured');
-      
-      setBookCompilation(prev => ({
-        ...prev,
-        totalTributes: approvedTributes.length,
-        totalAudioSeconds: approvedTributes.reduce((acc, t) => acc + (t.durationSeconds || 120), 0),
-        isCompiled: true,
-        lastCompiledAt: new Date().toISOString()
-      }));
-
-      setIsCompilingBook(false);
-      showToast('📖 Coffee Table Keepsake Volume & Master Prelude Audio successfully compiled!');
-    }, 2800);
+  // Approve Tribute in Admin
+  const approveTribute = (id: string, name: string) => {
+    setTributes(prev => prev.map(t => t.id === id ? { ...t, status: 'approved' } : t));
+    showToast(`✓ Published ${name}'s tribute to Coffee Table Keepsake Volume!`);
   };
 
-  // Moderation status change
-  const handleUpdateTributeStatus = (tributeId: string, newStatus: 'approved' | 'featured' | 'archived') => {
+  // Format Poem in Admin
+  const autoFormatIntoPoem = (id: string) => {
     setTributes(prev => prev.map(t => {
-      if (t.id === tributeId) {
-        return {
-          ...t,
-          status: newStatus,
-          approvedAt: newStatus !== 'archived' ? new Date().toISOString() : undefined,
-          isFeatured: newStatus === 'featured'
-        };
+      if (t.id === id) {
+        const poem = formatIntoPoeticStanzas(t.rawTranscript || t.promptQuestion, t.contributorName, t.contributorRelation);
+        return { ...t, poeticStanzas: poem.stanzas };
       }
       return t;
     }));
-    showToast(`✓ Tribute marked as ${newStatus.toUpperCase()}`);
+    showToast('✨ AI Poem Engine successfully formatted poetic stanzas!');
   };
 
-  // Format single tribute in moderation table
-  const handleFormatSingleTributePoem = (tributeId: string) => {
-    setTributes(prev => prev.map(t => {
-      if (t.id === tributeId) {
-        const res = formatIntoPoeticStanzas(t.rawTranscript || t.promptQuestion, t.contributorName, t.contributorRelation);
-        return {
-          ...t,
-          poeticStanzas: res.stanzas
-        };
-      }
-      return t;
-    }));
-    showToast('✨ AI Memorial Engine formatted tribute into 4-line poetic stanzas!');
-  };
-
-  // Send friend invitation
-  const handleSendFriendInvite = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shareRecipientName.trim() || !shareRecipientContact.trim()) {
-      alert('Please provide recipient name and contact details.');
-      return;
-    }
-
-    setIsSendingInvite(true);
-    setTimeout(() => {
-      const newInv: FriendTributeInvitation = {
-        id: `inv-${Date.now()}`,
-        caseId: activeCase.id,
-        recipientName: shareRecipientName.trim(),
-        recipientContact: shareRecipientContact.trim(),
-        channel: shareChannel,
-        status: 'sent',
-        personalNote: shareNote.trim() || `Please share a memory for ${activeCase.decedent.legalName}'s Coffee Table Keepsake Book.`,
-        sentAt: 'Just now',
-        magicToken: `tok_${Math.random().toString(36).substring(2, 9)}`
-      };
-
-      setInvitations(prev => [newInv, ...prev]);
-      setShareRecipientName('');
-      setShareRecipientContact('');
-      setShareNote('');
-      setIsSendingInvite(false);
-      showToast(`📱 Tribute invite dispatched to ${newInv.recipientName} via ${shareChannel.toUpperCase()}!`);
-    }, 800);
-  };
-
-  // Simulate friend action
-  const handleSimulateInviteAction = (invId: string, nextStatus: 'opened' | 'recorded') => {
-    setInvitations(prev => prev.map(inv => {
-      if (inv.id === invId) {
-        return {
-          ...inv,
-          status: nextStatus,
-          openedAt: nextStatus === 'opened' || nextStatus === 'recorded' ? 'Just now' : inv.openedAt,
-          recordedAt: nextStatus === 'recorded' ? 'Just now' : inv.recordedAt
-        };
-      }
-      return inv;
-    }));
-    showToast(`Simulation: Invitation ${nextStatus === 'opened' ? 'opened by friend' : 'voice memory recorded'}!`);
-  };
-
-  const formatSeconds = (sec: number) => {
-    const m = String(Math.floor(sec / 60)).padStart(2, '0');
-    const s = String(sec % 60).padStart(2, '0');
-    return `${m}:${s}`;
-  };
+  const activePrompt = promptsList[selectedPromptIndex] || CURATED_QUESTION_BANK[0];
+  const pendingCount = tributes.filter(t => t.status === 'pending').length;
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[85vh] bg-[#faf7f2] text-[#191714] font-sans antialiased -mx-4 sm:-mx-6 lg:-mx-8 -my-6 sm:-my-8 p-4 sm:p-6 lg:p-8 rounded-3xl">
       
-      {/* Toast Alert Banner */}
+      {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#191714] text-amber-200 border-2 border-[#af893e] px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-xs font-bold animate-fadeIn">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed bottom-6 right-6 z-50 bg-[#191714] text-[#af893e] border border-[#af893e] px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 text-xs font-bold animate-fadeIn">
+          <Sparkles className="w-4 h-4 text-[#af893e]" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* DIGNIFIED HERO BANNER */}
-      <div className="bg-gradient-to-br from-[#141b2b] via-[#1c2438] to-[#261e14] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden border border-amber-500/30">
-        <div className="max-w-4xl space-y-3 relative z-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center space-x-1.5 bg-amber-400/20 border border-amber-400/50 text-amber-200 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-              <Headphones className="w-3.5 h-3.5 text-amber-300" />
-              <span>Digi-Tribute 2.0 • Living Memorial Platform</span>
-            </span>
-            <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Permanent Master Archival Active</span>
-            </span>
-            {isStaffUser && (
-              <span className="bg-amber-950/80 text-amber-300 border border-amber-500/50 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-                Director Mode
-              </span>
-            )}
-          </div>
-
-          <h2 className="font-serif-title text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-wide">
-            Digital Tribute & Coffee Table Keepsake Volume
-          </h2>
-          <p className="text-xs sm:text-sm text-neutral-300 font-light leading-relaxed max-w-3xl">
-            In loving memory of <strong className="text-amber-300 font-bold">{activeCase.decedent.legalName}</strong>. 
-            Gather living acoustic voice recordings, video tributes, and written reflections from family and friends worldwide. 
-            Curate and format tributes into poetic stanzas bound into a luxury high-res Coffee Table Keepsake Volume with scan-to-stream QR audio playback.
-          </p>
-
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center">
-              <div className="text-xl font-bold font-serif-title text-amber-300">{tributes.length}</div>
-              <div className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">Tributes Gathered</div>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center">
-              <div className="text-xl font-bold font-serif-title text-emerald-300">
-                {tributes.filter(t => t.status === 'approved' || t.status === 'featured').length}
-              </div>
-              <div className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">In Keepsake Volume</div>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center">
-              <div className="text-xl font-bold font-serif-title text-sky-300">78 Prompts</div>
-              <div className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">Curated Question Bank</div>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center">
-              <div className="text-xl font-bold font-serif-title text-purple-300">{invitations.length}</div>
-              <div className="text-[10px] text-neutral-400 uppercase tracking-wider font-semibold">Community Invites</div>
-            </div>
-          </div>
+      {/* TOP SITE HEADER */}
+      <header className="bg-[#faf7f2]/95 backdrop-blur-md border-b border-[#ece5d8] sticky top-0 z-40 -mt-4 -mx-4 sm:-mx-6 lg:-mx-8 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 mb-8">
+        
+        {/* Brand Group */}
+        <div className="flex items-center gap-3">
+          <span className="text-2xl text-[#af893e]">🕊️</span>
+          <span className="font-serif font-bold text-2xl tracking-wide text-[#191714]">
+            Digital Tribute
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-widest bg-[#f5eedf] text-[#af893e] border border-[#e6dac1] px-2.5 py-0.5 rounded-full">
+            V2.0 COFFEE TABLE EDITION
+          </span>
         </div>
 
-        <div className="absolute right-6 -bottom-6 text-9xl text-white/5 font-serif select-none pointer-events-none">
-          🕊️
-        </div>
-      </div>
-
-      {/* TOP SUB-NAVIGATION TABS */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-100/80 p-1.5 rounded-2xl border border-neutral-200">
-        <div className="flex flex-wrap gap-1">
+        {/* Navigation Tabs (Pill Segmented Bar) */}
+        <nav className="flex items-center bg-[#eee8dc] p-1 rounded-full gap-1 text-xs font-semibold">
           <button
-            onClick={() => setStudioMode('studio')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
-              studioMode === 'studio'
-                ? 'bg-[#991b1b] text-white shadow-md'
-                : 'text-neutral-700 hover:text-neutral-900 hover:bg-neutral-200/60'
+            onClick={() => setActiveTab('guest')}
+            className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'guest'
+                ? 'bg-white text-[#af893e] shadow-xs'
+                : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
-            <Mic className="w-3.5 h-3.5 text-amber-300" />
-            <span>1. Record / Share Tribute</span>
+            <span>🎙️ Share a Memory</span>
           </button>
 
           <button
-            onClick={() => setStudioMode('book')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
-              studioMode === 'book'
-                ? 'bg-[#af893e] text-white shadow-md'
-                : 'text-neutral-700 hover:text-neutral-900 hover:bg-neutral-200/60'
+            onClick={() => setActiveTab('document')}
+            className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'document'
+                ? 'bg-white text-[#af893e] shadow-xs'
+                : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>2. Coffee Table Keepsake Book</span>
+            <span>📖 Keepsake Coffee Table Book</span>
           </button>
 
           <button
-            onClick={() => setStudioMode('admin')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
-              studioMode === 'admin'
-                ? 'bg-neutral-900 text-amber-300 shadow-md'
-                : 'text-neutral-700 hover:text-neutral-900 hover:bg-neutral-200/60'
+            onClick={() => setActiveTab('admin')}
+            className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'admin'
+                ? 'bg-white text-[#af893e] shadow-xs'
+                : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>3. Family & Staff Moderation Hub</span>
-            {tributes.filter(t => t.status === 'pending').length > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                {tributes.filter(t => t.status === 'pending').length}
+            <span>🏛️ Funeral Admin</span>
+            {pendingCount > 0 && (
+              <span className="bg-[#e53e3e] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-1">
+                {pendingCount}
               </span>
             )}
           </button>
 
           <button
-            onClick={() => setStudioMode('invites')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
-              studioMode === 'invites'
-                ? 'bg-neutral-800 text-white shadow-md'
-                : 'text-neutral-700 hover:text-neutral-900 hover:bg-neutral-200/60'
+            onClick={() => setActiveTab('cloud')}
+            className={`px-4 py-2 rounded-full transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'cloud'
+                ? 'bg-white text-[#af893e] shadow-xs'
+                : 'text-[#69635b] hover:text-[#191714]'
             }`}
           >
-            <Share2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>4. Community Invites & QR Cards</span>
+            <span>⚡ Cloud Sync</span>
           </button>
+        </nav>
+      </header>
 
-          <button
-            onClick={() => setStudioMode('cloud')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
-              studioMode === 'cloud'
-                ? 'bg-neutral-800 text-white shadow-md'
-                : 'text-neutral-700 hover:text-neutral-900 hover:bg-neutral-200/60'
-            }`}
-          >
-            <Cloud className="w-3.5 h-3.5 text-sky-400" />
-            <span>5. 90-Day Archival & Purge Rules</span>
-          </button>
-        </div>
-
-        {/* Global Action: Quick QR Print */}
-        <button
-          onClick={() => setIsQRCardModalOpen(true)}
-          className="bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-sm ml-auto"
-        >
-          <QrCode className="w-3.5 h-3.5 text-[#b45309]" />
-          <span>Print 4-Up QR Service Cards</span>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* MODE 1: CONTRIBUTOR MEMORIAL STUDIO (5-STEP INTERACTIVE FLOW)              */}
-      {/* ========================================================================= */}
-      {studioMode === 'studio' && (
-        <div className="space-y-6">
+      {/* ======================================================== */}
+      {/* VIEW 1: SHARE A MEMORY (4-STEP WORKFLOW)                 */}
+      {/* ======================================================== */}
+      {activeTab === 'guest' && (
+        <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
           
-          {/* 5-Step Visual Stepper Bar */}
-          <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
-            <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold">
-              {[
-                { step: 1, label: '1. Welcome & Access' },
-                { step: 2, label: '2. Relationship' },
-                { step: 3, label: '3. Curated Question' },
-                { step: 4, label: '4. Record / Write' },
-                { step: 5, label: '5. Keepsake Created' }
-              ].map(item => (
-                <button
-                  key={item.step}
-                  onClick={() => setContributorStep(item.step)}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center space-x-1 ${
-                    contributorStep === item.step
-                      ? 'bg-[#991b1b] text-white shadow-sm'
-                      : contributorStep > item.step
-                      ? 'bg-amber-50 text-[#b45309] border border-amber-200'
-                      : 'bg-neutral-50 text-neutral-400 hover:bg-neutral-100'
-                  }`}
-                >
-                  <span className="text-[11px] truncate">{item.label}</span>
-                </button>
-              ))}
-            </div>
+          {/* Hero Banner */}
+          <div className="text-center space-y-2">
+            <h2 className="font-serif text-3xl sm:text-4xl font-semibold text-[#1a1815]">
+              Preserve Their True Impact
+            </h2>
+            <p className="text-[#69635b] text-sm sm:text-base max-w-xl mx-auto font-normal">
+              Select your connection to uncover paired reflection questions that celebrate their life through joy, pain, sacrifice, and action.
+            </p>
           </div>
 
-          {/* STEP 1: WELCOME & ACCESS PIN */}
-          {contributorStep === 1 && (
-            <div className="bg-white border-2 border-amber-400/50 rounded-3xl p-6 sm:p-10 shadow-lg max-w-2xl mx-auto text-center space-y-6">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#991b1b] to-[#b45309] text-white flex items-center justify-center font-serif-title font-bold text-3xl mx-auto shadow-md border-2 border-amber-300">
-                BFH
-              </div>
-
-              <div className="space-y-2">
-                <span className="bg-amber-100 text-[#b45309] border border-amber-300 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
-                  🕊️ Digi-Tribute 2.0 Contributor Studio
-                </span>
-                <h3 className="font-serif-title text-2xl sm:text-3xl font-bold text-neutral-900">
-                  Celebrate the Life of {activeCase.decedent.legalName}
-                </h3>
-                <p className="text-xs sm:text-sm text-neutral-600 max-w-md mx-auto leading-relaxed">
-                  You have been invited to record a living acoustic voice tribute, video memory, or written reflection. 
-                  Your words will be preserved in the family's permanent Coffee Table Keepsake Book.
-                </p>
-              </div>
-
-              {/* Privacy Access Check */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 max-w-md mx-auto space-y-3 text-left">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-neutral-700 flex items-center space-x-1.5">
-                    <Lock className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Family Access Protection (PIN / Magic Link)</span>
-                  </span>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                    Verified Guest
-                  </span>
+          {/* White Card Box */}
+          <div className="bg-white border border-[#ece5d8] rounded-3xl p-6 sm:p-10 shadow-sm space-y-8">
+            
+            {/* Stepper Header */}
+            <div className="flex items-center justify-center gap-6 sm:gap-10 border-b border-[#ece5d8] pb-5 text-xs font-semibold">
+              <div className={`flex items-center gap-2 ${guestStep >= 1 ? 'text-[#af893e]' : 'text-[#9c968c]'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${guestStep >= 1 ? 'bg-[#af893e] text-white' : 'bg-[#e9e3d5] text-[#69635b]'}`}>
+                  1
                 </div>
-                <p className="text-[11px] text-neutral-500">
-                  This tribute studio is private to family, friends, and church community members.
-                </p>
+                <span>PIN Gate</span>
               </div>
 
-              <button
-                onClick={() => setContributorStep(2)}
-                className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-sm px-8 py-3.5 rounded-2xl transition shadow-lg shadow-red-950/20 flex items-center space-x-2 mx-auto"
-              >
-                <span>Begin Your Tribute</span>
-                <ArrowRight className="w-4 h-4 text-amber-300" />
-              </button>
-            </div>
-          )}
+              <div className={`flex items-center gap-2 ${guestStep >= 2 ? 'text-[#af893e]' : 'text-[#9c968c]'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${guestStep >= 2 ? 'bg-[#af893e] text-white' : 'bg-[#e9e3d5] text-[#69635b]'}`}>
+                  2
+                </div>
+                <span>Relationship</span>
+              </div>
 
-          {/* STEP 2: RELATIONSHIP TAXONOMY SELECTOR */}
-          {contributorStep === 2 && (
-            <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 pb-4">
+              <div className={`flex items-center gap-2 ${guestStep >= 3 ? 'text-[#af893e]' : 'text-[#9c968c]'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${guestStep >= 3 ? 'bg-[#af893e] text-white' : 'bg-[#e9e3d5] text-[#69635b]'}`}>
+                  3
+                </div>
+                <span>Dynamic Questions</span>
+              </div>
+
+              <div className={`flex items-center gap-2 ${guestStep >= 4 ? 'text-[#af893e]' : 'text-[#9c968c]'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${guestStep >= 4 ? 'bg-[#af893e] text-white' : 'bg-[#e9e3d5] text-[#69635b]'}`}>
+                  4
+                </div>
+                <span>Studio Recording</span>
+              </div>
+            </div>
+
+            {/* STEP 1: PIN GATE */}
+            {guestStep === 1 && (
+              <div className="max-w-md mx-auto text-center py-6 space-y-5">
+                <div className="text-5xl">🔒</div>
                 <div className="space-y-1">
-                  <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
-                    What was your relationship to {activeCase.decedent.legalName}?
-                  </h3>
-                  <p className="text-xs text-neutral-500">
-                    Selecting your connection unlocks 78 deeply personal, curated prompts tailored to your shared story.
+                  <h3 className="text-xl font-bold text-[#191714]">Private Memorial Portal</h3>
+                  <p className="text-xs text-[#69635b]">
+                    Enter the 4-digit PIN from your memorial card (Demo PIN: <strong>1948</strong> or Manager PIN: <strong>3995</strong>)
                   </p>
                 </div>
 
-                {/* Search & Category Filter */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      placeholder="Search relationship..."
-                      value={relationshipSearch}
-                      onChange={(e) => setRelationshipSearch(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 outline-none focus:border-[#991b1b] w-48"
-                    />
-                  </div>
+                <div className="pt-2">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={eventPinInput}
+                    onChange={(e) => setEventPinInput(e.target.value)}
+                    className="w-48 text-center text-2xl tracking-[12px] font-mono font-bold bg-[#faf7f2] border-2 border-[#e6dac1] rounded-2xl py-3 text-[#191714] outline-none focus:border-[#af893e] shadow-inner"
+                  />
+                </div>
+
+                {pinError && (
+                  <p className="text-xs text-red-600 font-semibold">{pinError}</p>
+                )}
+
+                <div>
+                  <button
+                    onClick={handleUnlockPIN}
+                    className="bg-[#af893e] hover:bg-[#96732f] text-white font-bold text-sm px-8 py-3 rounded-full shadow-md transition cursor-pointer"
+                  >
+                    Unlock Memorial
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Group Filter Chips */}
-              <div className="flex flex-wrap gap-1.5">
-                {['All', 'Immediate Family', 'Extended & In-Laws', 'Friends & Early Years', 'Mentors & Colleagues', 'Community & Faith'].map(group => (
+            {/* STEP 2: RELATIONSHIP SELECTOR */}
+            {guestStep === 2 && (
+              <div className="space-y-6">
+                <div className="text-center space-y-1">
+                  <h3 className="font-serif text-2xl font-bold text-[#191714]">
+                    How were you connected to {decedentDisplayName}?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69635b]">
+                    Choose the category that best describes your bond.
+                  </p>
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
-                    key={group}
-                    onClick={() => setSelectedGroupFilter(group)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                      selectedGroupFilter === group
-                        ? 'bg-[#991b1b] text-white shadow-sm'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    onClick={() => setSelectedCatFilter('family')}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      selectedCatFilter === 'family'
+                        ? 'bg-white border border-[#e6dac1] text-[#af893e] shadow-xs'
+                        : 'bg-[#f4efe6] text-[#69635b] hover:text-[#191714]'
                     }`}
                   >
-                    {group}
+                    <span>❤️ Family Members</span>
                   </button>
-                ))}
-              </div>
 
-              {/* Relationship Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 max-h-[480px] overflow-y-auto pr-1">
-                {filteredCategories.map(cat => (
-                  <div
-                    key={cat.id}
-                    onClick={() => handleSelectCategory(cat.id, cat.label)}
-                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between hover:shadow-md hover:border-amber-400 ${
-                      selectedRelationship === cat.id
-                        ? 'bg-amber-50/90 border-[#af893e] ring-2 ring-amber-400/30'
-                        : 'bg-neutral-50/60 border-neutral-200 hover:bg-white'
+                  <button
+                    onClick={() => setSelectedCatFilter('friends')}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      selectedCatFilter === 'friends'
+                        ? 'bg-white border border-[#e6dac1] text-[#af893e] shadow-xs'
+                        : 'bg-[#f4efe6] text-[#69635b] hover:text-[#191714]'
                     }`}
                   >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-2xl">{cat.icon}</span>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                          {cat.group}
-                        </span>
+                    <span>👥 Types of Friends</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedCatFilter('associates')}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      selectedCatFilter === 'associates'
+                        ? 'bg-white border border-[#e6dac1] text-[#af893e] shadow-xs'
+                        : 'bg-[#f4efe6] text-[#69635b] hover:text-[#191714]'
+                    }`}
+                  >
+                    <span>⭐ Associates & Admirers</span>
+                  </button>
+                </div>
+
+                {/* Relationship Grid Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-2">
+                  {RELATIONSHIP_CATEGORIES
+                    .filter(c => {
+                      if (selectedCatFilter === 'family') return c.group === 'Immediate Family' || c.group === 'Extended & In-Laws';
+                      if (selectedCatFilter === 'friends') return c.group === 'Friends & Early Years' || c.group === 'Community & Faith';
+                      return c.group === 'Mentors & Colleagues' || c.group === 'Community & Faith';
+                    })
+                    .map(cat => (
+                      <div
+                        key={cat.id}
+                        onClick={() => handleSelectRelationshipCard(cat.id, cat.label)}
+                        className="bg-[#faf7f2] hover:bg-[#f5eedf] border border-[#ece5d8] hover:border-[#af893e] rounded-2xl p-4 sm:p-5 text-left cursor-pointer transition transform hover:-translate-y-0.5 shadow-xs group"
+                      >
+                        <div className="flex items-center justify-between text-sm font-bold text-[#191714] group-hover:text-[#af893e]">
+                          <span>{cat.label}</span>
+                          <span className="text-[#af893e]">→</span>
+                        </div>
+                        <p className="text-xs text-[#69635b] mt-1 line-clamp-2">
+                          {cat.sub}
+                        </p>
                       </div>
-                      <div className="font-bold text-sm text-neutral-900">{cat.label}</div>
-                      <p className="text-[11px] text-neutral-500 leading-snug">{cat.sub}</p>
-                    </div>
-
-                    <div className="pt-3 border-t border-neutral-200/60 mt-3 flex items-center justify-between text-[11px] text-neutral-600 font-semibold">
-                      <span>View Prompts</span>
-                      <ChevronRight className="w-4 h-4 text-[#af893e]" />
-                    </div>
-                  </div>
-                ))}
+                    ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* STEP 3: DYNAMIC QUESTION BANK & 4 NARRATIVE PILLARS */}
-          {contributorStep === 3 && (
-            <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 pb-4">
+            {/* STEP 3: DYNAMIC QUESTIONS */}
+            {guestStep === 3 && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b border-[#ece5d8] pb-3">
+                  <button
+                    onClick={() => setGuestStep(2)}
+                    className="text-xs text-[#69635b] hover:text-[#191714] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>← Change Relationship</span>
+                  </button>
+
+                  <span className="bg-[#f5eedf] text-[#af893e] border border-[#e6dac1] text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                    {selectedRelationshipLabel}
+                  </span>
+                </div>
+
                 <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="bg-amber-100 text-[#b45309] text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
-                      Relationship: {RELATIONSHIP_CATEGORIES.find(c => c.id === selectedRelationship)?.label}
-                    </span>
-                  </div>
-                  <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
-                    Choose a Meaningful Reflection Prompt
+                  <h3 className="font-serif text-2xl font-bold text-[#191714]">
+                    Choose a Question to Discuss
                   </h3>
-                  <p className="text-xs text-neutral-500">
-                    Each prompt is paired with an introspective follow-up question to spark genuine, heartfelt storytelling.
+                  <p className="text-xs sm:text-sm text-[#69635b]">
+                    Click any prompt to reveal the paired follow-up question that guides your storytelling.
                   </p>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handleShufflePrompts}
-                    className="bg-amber-50 hover:bg-amber-100 text-[#b45309] border border-amber-300 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-sm"
-                  >
-                    <Shuffle className="w-3.5 h-3.5" />
-                    <span>Shuffle Prompts</span>
-                  </button>
-                  <button
-                    onClick={() => setContributorStep(2)}
-                    className="text-xs text-neutral-500 hover:text-neutral-800 font-semibold px-2 py-1"
-                  >
-                    Change Relationship
-                  </button>
-                </div>
-              </div>
+                {/* Prompt List Cards */}
+                <div className="space-y-3 pt-2">
+                  {promptsList.map((prompt, idx) => {
+                    const isSelected = selectedPromptIndex === idx;
+                    const pillarStyle = 
+                      prompt.pillar === 'joy' ? 'bg-[#fef3c7] text-[#d97706]' :
+                      prompt.pillar === 'pain' ? 'bg-[#e0e7ff] text-[#4f46e5]' :
+                      prompt.pillar === 'help' ? 'bg-[#ccfbf1] text-[#0d9488]' :
+                      'bg-[#ede9fe] text-[#7c3aed]';
 
-              {/* 4 Narrative Pillar Filter Buttons */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: 'all', label: 'All 4 Narrative Pillars', icon: '🌟' },
-                  { id: 'joy', label: 'Joy & Laughter', icon: '✨' },
-                  { id: 'pain', label: 'Pain & Resilience', icon: '🛡️' },
-                  { id: 'help', label: 'Help & Sacrifice', icon: '🤝' },
-                  { id: 'action', label: 'Witnessing in Action', icon: '👁️' }
-                ].map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedPillarFilter(p.id)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
-                      selectedPillarFilter === p.id
-                        ? 'bg-[#991b1b] text-white shadow-sm'
-                        : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100 border border-neutral-200'
-                    }`}
-                  >
-                    <span>{p.icon}</span>
-                    <span className="truncate">{p.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Prompt Pebble Cards List */}
-              <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
-                {availablePrompts.map(prompt => {
-                  const isSelected = selectedPrompt.id === prompt.id;
-                  const pillarMeta = NARRATIVE_PILLARS[prompt.pillar] || NARRATIVE_PILLARS.joy;
-
-                  return (
-                    <div
-                      key={prompt.id}
-                      onClick={() => setSelectedPrompt(prompt)}
-                      className={`p-4 sm:p-5 rounded-2xl border-2 transition cursor-pointer space-y-2.5 ${
-                        isSelected
-                          ? 'bg-amber-50/90 border-[#af893e] ring-2 ring-amber-400/20 shadow-md'
-                          : 'bg-neutral-50/50 border-neutral-200 hover:bg-white hover:border-amber-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${pillarMeta.badgeBg}`}>
-                          {pillarMeta.icon} {pillarMeta.label}
+                    return (
+                      <div
+                        key={prompt.id || idx}
+                        onClick={() => setSelectedPromptIndex(idx)}
+                        className={`p-5 rounded-2xl border transition cursor-pointer text-left ${
+                          isSelected
+                            ? 'bg-[#f5eedf] border-[#af893e] shadow-md'
+                            : 'bg-[#faf7f2] border-[#ece5d8] hover:border-[#af893e]/60'
+                        }`}
+                      >
+                        <span className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full mb-2 ${pillarStyle}`}>
+                          {prompt.pillarLabel || 'Reflection Prompt'}
                         </span>
-                        {isSelected && (
-                          <span className="text-xs font-bold text-[#b45309] flex items-center space-x-1">
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Selected Prompt</span>
-                          </span>
+                        <div className="text-base font-bold text-[#191714]">
+                          “{prompt.questionText}”
+                        </div>
+                        {prompt.followUpPrompt && isSelected && (
+                          <div className="mt-3 pt-2.5 border-t border-dashed border-[#e6dac1] text-xs text-[#695d46] italic leading-relaxed">
+                            Follow-Up: “{prompt.followUpPrompt}”
+                          </div>
                         )}
                       </div>
+                    );
+                  })}
+                </div>
 
-                      <div className="font-serif-title font-bold text-base sm:text-lg text-neutral-900">
-                        {prompt.questionText}
-                      </div>
-
-                      {prompt.followUpPrompt && (
-                        <div className="text-xs text-neutral-600 italic bg-white/70 border border-neutral-200/80 rounded-xl p-2.5">
-                          ↳ <strong>Follow-Up Reflection:</strong> "{prompt.followUpPrompt}"
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="pt-3 border-t border-neutral-200 flex justify-between items-center">
-                <button
-                  onClick={() => setContributorStep(2)}
-                  className="text-xs text-neutral-600 hover:text-neutral-900 font-bold"
-                >
-                  ← Back to Relationships
-                </button>
-
-                <button
-                  onClick={() => setContributorStep(4)}
-                  className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-6 py-3 rounded-xl transition shadow-md flex items-center space-x-1.5"
-                >
-                  <span>Continue to Recording Studio</span>
-                  <ArrowRight className="w-4 h-4 text-amber-300" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 4: MEDIA RECORDING & WRITING STUDIO */}
-          {contributorStep === 4 && (
-            <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-              
-              {/* Teleprompter Card Header */}
-              <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-300 rounded-2xl p-5 text-center space-y-2">
-                <span className="inline-block bg-[#af893e] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-0.5 rounded-full">
-                  Teleprompter Guide
-                </span>
-                <h4 className="font-serif-title text-lg sm:text-xl font-bold text-neutral-900">
-                  {selectedPrompt.questionText}
-                </h4>
-                {selectedPrompt.followUpPrompt && (
-                  <p className="text-xs text-neutral-600 italic max-w-xl mx-auto border-t border-amber-200/80 pt-2">
-                    Follow-Up Reflection: "{selectedPrompt.followUpPrompt}"
-                  </p>
-                )}
-              </div>
-
-              {/* Media Format Switcher */}
-              <div className="flex flex-wrap justify-center gap-2 border-b border-neutral-200 pb-4">
-                {[
-                  { mode: 'voice', label: '🎙️ Live Acoustic Voice' },
-                  { mode: 'video', label: '📹 Video Tribute' },
-                  { mode: 'written', label: '✍️ Written Reflection & Poem' },
-                  { mode: 'photo', label: '🖼️ Archival Photo & Letter' }
-                ].map(item => (
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-[#ece5d8]">
                   <button
-                    key={item.mode}
-                    onClick={() => setMediaType(item.mode as TributeMediaType)}
-                    className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition text-left flex items-center space-x-2 ${
-                      mediaType === item.mode
-                        ? 'bg-[#991b1b] text-white shadow-md'
-                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                    }`}
+                    onClick={shufflePrompts}
+                    className="px-4 py-2.5 rounded-full border border-[#ece5d8] text-xs font-bold text-[#69635b] hover:text-[#191714] hover:bg-neutral-50 transition cursor-pointer"
                   >
-                    <span>{item.label}</span>
+                    ↻ Shuffle for Different Questions
                   </button>
-                ))}
+
+                  <button
+                    onClick={() => setGuestStep(4)}
+                    className="bg-[#af893e] hover:bg-[#96732f] text-white font-bold text-xs px-6 py-2.5 rounded-full shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Continue to Record</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
+            )}
 
-              {/* MEDIA STUDIO CANVAS */}
-              <div className="space-y-4">
-                
-                {/* 1. Voice Recording Mode */}
-                {mediaType === 'voice' && (
-                  <div className="bg-[#181614] rounded-3xl p-6 sm:p-8 text-white text-center space-y-4 shadow-inner">
-                    <div className="flex justify-between items-center text-xs text-amber-400 font-mono tracking-wider">
-                      <span className="flex items-center space-x-1.5">
-                        <Radio className={`w-3.5 h-3.5 ${isRecording ? 'animate-pulse text-red-500' : ''}`} />
-                        <span>{isRecording ? 'LIVE ACOUSTIC RECORDING' : 'AUDIO RECORDER READY'}</span>
-                      </span>
-                      <span>{formatSeconds(recordDuration)}</span>
-                    </div>
+            {/* STEP 4: STUDIO RECORDING */}
+            {guestStep === 4 && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ece5d8] pb-3">
+                  <button
+                    onClick={() => setGuestStep(3)}
+                    className="text-xs text-[#69635b] hover:text-[#191714] font-semibold cursor-pointer"
+                  >
+                    ← Back to Questions
+                  </button>
 
-                    {/* Canvas Waveform */}
-                    <div className="h-20 flex items-center justify-center">
-                      <canvas ref={canvasRef} width={500} height={70} className="w-full max-w-lg" />
-                    </div>
+                  <div className="flex items-center bg-[#eee8dc] p-1 rounded-full text-xs font-bold">
+                    <button
+                      onClick={() => setMediaMode('voice')}
+                      className={`px-3 py-1.5 rounded-full transition cursor-pointer ${
+                        mediaMode === 'voice' ? 'bg-white text-[#af893e] shadow-xs' : 'text-[#69635b]'
+                      }`}
+                    >
+                      🎙️ Voice Only
+                    </button>
+                    <button
+                      onClick={() => setMediaMode('video')}
+                      className={`px-3 py-1.5 rounded-full transition cursor-pointer ${
+                        mediaMode === 'video' ? 'bg-white text-[#af893e] shadow-xs' : 'text-[#69635b]'
+                      }`}
+                    >
+                      📹 Video & Audio
+                    </button>
+                    <button
+                      onClick={() => setMediaMode('written')}
+                      className={`px-3 py-1.5 rounded-full transition cursor-pointer ${
+                        mediaMode === 'written' ? 'bg-white text-[#af893e] shadow-xs' : 'text-[#69635b]'
+                      }`}
+                    >
+                      ✍️ Written
+                    </button>
+                  </div>
+                </div>
 
-                    {/* Big Circular Recording Button */}
-                    <div className="flex items-center justify-center space-x-4">
-                      {!isRecording ? (
-                        <button
-                          onClick={startAudioRecording}
-                          className="w-16 h-16 rounded-full bg-[#991b1b] hover:bg-red-800 text-white flex items-center justify-center text-2xl shadow-xl shadow-red-950/40 transition transform active:scale-95 border-2 border-amber-300"
-                          title="Start recording"
-                        >
-                          <Mic className="w-7 h-7 text-amber-200" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={stopAudioRecording}
-                          className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center text-2xl shadow-xl shadow-red-950/40 transition transform active:scale-95 animate-pulse border-2 border-white"
-                          title="Stop recording"
-                        >
-                          <Pause className="w-7 h-7" />
-                        </button>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-neutral-400">
-                      {isRecording 
-                        ? 'Speak naturally from the heart. Tap the square button when finished.'
-                        : 'Tap the red button to record your voice memory using your microphone.'}
+                {/* Teleprompter Box */}
+                <div className="bg-[#f5eedf] border border-[#e6dac1] rounded-2xl p-5 text-center space-y-2">
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-[#fef3c7] text-[#d97706] px-2.5 py-0.5 rounded-full">
+                    ✨ {activePrompt.pillarLabel || 'Joy & Laughter'}
+                  </span>
+                  <h4 className="text-base sm:text-lg font-bold text-[#2c2518]">
+                    “{activePrompt.questionText}”
+                  </h4>
+                  {activePrompt.followUpPrompt && (
+                    <p className="text-xs text-[#695d46] italic pt-1 border-t border-dashed border-[#e6dac1]">
+                      Follow-Up: “{activePrompt.followUpPrompt}”
                     </p>
+                  )}
+                </div>
 
-                    {hasLiveAudioRecording && !isRecording && (
-                      <div className="bg-white/10 border border-amber-400/30 rounded-xl p-3 flex items-center justify-between text-xs max-w-sm mx-auto">
-                        <span className="text-emerald-300 flex items-center space-x-1 font-bold">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          <span>Voice Memory Recorded ({formatSeconds(recordDuration)})</span>
-                        </span>
-                        <button
-                          onClick={startAudioRecording}
-                          className="text-amber-300 hover:underline text-[11px]"
-                        >
-                          Re-record
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 2. Video Tribute Mode */}
-                {mediaType === 'video' && (
-                  <div className="bg-neutral-900 rounded-3xl p-6 sm:p-8 text-white text-center space-y-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center mx-auto text-3xl">
-                      📹
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="font-serif-title font-bold text-lg text-white">Video Tribute Viewfinder</h4>
-                      <p className="text-xs text-neutral-400 max-w-md mx-auto">
-                        Record directly using your webcam or upload a recorded tribute video (MP4/MOV).
-                      </p>
+                {/* Recording Canvas */}
+                {mediaMode === 'voice' && (
+                  <div className="bg-[#faf7f2] rounded-2xl p-6 text-center space-y-3">
+                    <canvas ref={canvasRef} width={560} height={80} className="w-full h-20 rounded-xl bg-[#faf7f2] mx-auto" />
+                    
+                    <div className="text-3xl font-mono font-bold text-[#191714]">
+                      {String(Math.floor(recordTimer / 60)).padStart(2, '0')}:{String(recordTimer % 60).padStart(2, '0')}
                     </div>
 
-                    <div className="flex flex-wrap justify-center gap-3 pt-2">
+                    <div>
                       <button
-                        onClick={() => {
-                          setRecordDuration(95);
-                          showToast('📹 Webcam connected and simulated 1:35 video memory captured!');
-                        }}
-                        className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition flex items-center space-x-1.5 shadow-md"
+                        onClick={toggleRealAudioRecording}
+                        className={`w-18 h-18 rounded-full text-2xl text-white shadow-xl transition flex items-center justify-center mx-auto cursor-pointer ${
+                          isRecording
+                            ? 'bg-[#e53e3e] animate-pulse shadow-red-500/40'
+                            : 'bg-[#af893e] hover:bg-[#96732f] shadow-[#af893e]/30'
+                        }`}
                       >
-                        <Video className="w-4 h-4 text-amber-300" />
-                        <span>Record via Camera</span>
-                      </button>
-
-                      <label className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer flex items-center space-x-1.5">
-                        <Download className="w-4 h-4 text-amber-300" />
-                        <span>Upload Video File</span>
-                        <input type="file" accept="video/*" className="hidden" onChange={() => showToast('Video file uploaded successfully.')} />
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Written Reflection & AI Poem Mode */}
-                {(mediaType === 'written' || mediaType === 'voice') && (
-                  <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-neutral-800 flex items-center space-x-1.5">
-                        <FileText className="w-3.5 h-3.5 text-[#991b1b]" />
-                        <span>Your Written Reflection / Spoken Story</span>
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={handleRunAiPoemEngine}
-                        disabled={isFormattingPoem}
-                        className="bg-[#af893e] hover:bg-[#967432] text-white font-bold text-[11px] px-3 py-1.5 rounded-lg transition flex items-center space-x-1 shadow-sm"
-                      >
-                        <Sparkles className={`w-3.5 h-3.5 ${isFormattingPoem ? 'animate-spin' : ''}`} />
-                        <span>{isFormattingPoem ? 'Formatting...' : '✨ Format into Poetic Stanzas'}</span>
+                        🎙️
                       </button>
                     </div>
 
+                    <p className="text-xs text-[#69635b] pt-1">
+                      {isRecording ? 'Recording in progress... Tap red button to finish' : 'Tap golden microphone to start acoustic voice recording'}
+                    </p>
+                  </div>
+                )}
+
+                {mediaMode === 'video' && (
+                  <div className="bg-[#191714] text-white rounded-2xl p-8 text-center space-y-3">
+                    <div className="text-4xl">📹</div>
+                    <h4 className="font-bold text-base">Camera Viewfinder Ready</h4>
+                    <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                      High-definition audio and video will be recorded simultaneously.
+                    </p>
+                    <button
+                      onClick={() => showToast('📹 Video camera recording simulated!')}
+                      className="bg-[#af893e] hover:bg-[#96732f] text-white font-bold text-xs px-6 py-2.5 rounded-full transition cursor-pointer"
+                    >
+                      Start Video Recording
+                    </button>
+                  </div>
+                )}
+
+                {mediaMode === 'written' && (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#191714]">
+                      Write Your Memory or Poetic Story:
+                    </label>
                     <textarea
                       rows={4}
-                      value={writtenMemory}
-                      onChange={(e) => setWrittenMemory(e.target.value)}
-                      placeholder="Share a vivid memory, conversation, or gratitude... (e.g. Every Sunday morning she would brew chamomile tea and write notes of courage...)"
-                      className="w-full bg-white border border-neutral-300 rounded-xl p-3 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
+                      value={writtenMemoryText}
+                      onChange={(e) => setWrittenMemoryText(e.target.value)}
+                      placeholder="Share your personal story, quiet memory, or words of gratitude..."
+                      className="w-full bg-[#faf7f2] border border-[#ece5d8] rounded-2xl p-4 text-xs text-[#191714] outline-none focus:border-[#af893e]"
                     />
-
-                    {/* Live AI Stanza Preview */}
-                    {livePoemPreview.length > 0 && (
-                      <div className="bg-amber-50/80 border border-amber-300 rounded-2xl p-4 space-y-2">
-                        <div className="text-[10px] font-bold text-[#b45309] uppercase tracking-wider flex items-center space-x-1">
-                          <Sparkles className="w-3 h-3" />
-                          <span>AI Poetic Stanzas for Keepsake Booklet:</span>
-                        </div>
-                        {livePoemPreview.map((stanza, idx) => (
-                          <p key={idx} className="font-serif-body text-xs text-neutral-800 italic leading-relaxed whitespace-pre-line pl-3 border-l-2 border-amber-400">
-                            {stanza}
-                          </p>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
 
-                {/* Contributor Information Form */}
-                <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 space-y-4">
-                  <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
-                    Contributor Details
-                  </h4>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                        Your Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={contributorName}
-                        onChange={(e) => setContributorName(e.target.value)}
-                        placeholder="e.g. Robert Vance, Martha Hayes"
-                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                        Relationship to Loved One
-                      </label>
-                      <input
-                        type="text"
-                        value={contributorRelation}
-                        onChange={(e) => setContributorRelation(e.target.value)}
-                        placeholder="e.g. Spouse of 52 Years, Lifelong Friend"
-                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                        Email Address (Optional)
-                      </label>
-                      <input
-                        type="email"
-                        value={contributorEmail}
-                        onChange={(e) => setContributorEmail(e.target.value)}
-                        placeholder="robert@example.com"
-                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                        Phone Number (Optional)
-                      </label>
-                      <input
-                        type="tel"
-                        value={contributorPhone}
-                        onChange={(e) => setContributorPhone(e.target.value)}
-                        placeholder="(212) 555-0144"
-                        className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
-                      />
-                    </div>
-                  </div>
-
+                {/* Contributor Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                   <div>
-                    <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                      Private Note to the Immediate Family (Optional)
-                    </label>
+                    <label className="block text-[11px] font-bold text-[#69635b] mb-1">Your Full Name</label>
                     <input
                       type="text"
-                      value={privateNote}
-                      onChange={(e) => setPrivateNote(e.target.value)}
-                      placeholder="Private words of comfort only visible to the immediate family..."
-                      className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
+                      value={contributorName}
+                      onChange={(e) => setContributorName(e.target.value)}
+                      placeholder="e.g. Martha Hayes"
+                      className="w-full bg-[#faf7f2] border border-[#ece5d8] rounded-xl px-3.5 py-2.5 text-xs text-[#191714] outline-none focus:border-[#af893e]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#69635b] mb-1">Your Email Address</label>
+                    <input
+                      type="email"
+                      value={contributorEmail}
+                      onChange={(e) => setContributorEmail(e.target.value)}
+                      placeholder="e.g. martha.h@example.com"
+                      className="w-full bg-[#faf7f2] border border-[#ece5d8] rounded-xl px-3.5 py-2.5 text-xs text-[#191714] outline-none focus:border-[#af893e]"
                     />
                   </div>
                 </div>
 
+                {/* Submit Action */}
+                <div className="pt-3">
+                  <button
+                    onClick={submitGuestMemory}
+                    className="w-full bg-[#af893e] hover:bg-[#96732f] text-white font-bold text-sm py-3.5 rounded-full shadow-lg transition cursor-pointer"
+                  >
+                    Submit Memory to Family Keepsake Edition
+                  </button>
+                </div>
               </div>
+            )}
 
-              {/* Bottom Navigation */}
-              <div className="pt-3 border-t border-neutral-200 flex justify-between items-center">
-                <button
-                  onClick={() => setContributorStep(3)}
-                  className="text-xs text-neutral-600 hover:text-neutral-900 font-bold"
-                >
-                  ← Back to Questions
-                </button>
-
-                <button
-                  onClick={handleSubmitTribute}
-                  className="bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs px-8 py-3.5 rounded-2xl transition shadow-lg shadow-red-950/20 flex items-center space-x-2"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Submit Memory to Keepsake Edition</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 5: SUBMISSION CONFIRMATION & QR CARD */}
-          {contributorStep === 5 && (
-            <div className="bg-white border-2 border-emerald-400/60 rounded-3xl p-6 sm:p-10 shadow-xl max-w-2xl mx-auto text-center space-y-6">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-bold">
-                ✓
-              </div>
-
-              <div className="space-y-2">
-                <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
-                  Memorial Tribute Recorded
-                </span>
-                <h3 className="font-serif-title text-2xl sm:text-3xl font-bold text-neutral-900">
-                  Thank You for Honoring {activeCase.decedent.legalName}
+            {/* STEP 5: COMPLETED */}
+            {guestStep === 5 && (
+              <div className="max-w-md mx-auto text-center py-6 space-y-4">
+                <div className="text-5xl text-[#38a169]">✓</div>
+                <h3 className="font-serif text-2xl font-bold text-[#191714]">
+                  Thank You for Sharing
                 </h3>
-                <p className="text-xs sm:text-sm text-neutral-600 max-w-md mx-auto leading-relaxed">
-                  Your tribute has been safely archived and formatted for the family's Coffee Table Keepsake Book. 
-                  Once reviewed by the family, attendees will be able to scan your QR code and listen to your voice memory.
+                <p className="text-xs sm:text-sm text-[#69635b] leading-relaxed">
+                  Your tribute has been formatted into {decedentDisplayName}'s keepsake coffee table volume. Once approved by the funeral director, it will be published with scan-to-stream audio playback.
                 </p>
-              </div>
-
-              {/* Instant QR Verification Pill Preview */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 max-w-xs mx-auto space-y-2">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=https://e-bfh.com/tribute/${activeCase.caseNumber}`}
-                  alt="Tribute QR Code"
-                  className="w-28 h-28 mx-auto rounded-xl border border-neutral-200 shadow-sm"
-                />
-                <div className="text-[11px] font-bold text-neutral-800">
-                  Scan-to-Stream Audio Memory
+                <div className="flex justify-center gap-3 pt-3">
+                  <button
+                    onClick={() => setGuestStep(2)}
+                    className="px-5 py-2 rounded-full border border-[#ece5d8] text-xs font-bold text-[#69635b] hover:text-[#191714] transition cursor-pointer"
+                  >
+                    Share Another Memory
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('document')}
+                    className="px-5 py-2 rounded-full bg-[#af893e] hover:bg-[#96732f] text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                  >
+                    Preview Keepsake Book →
+                  </button>
                 </div>
-                <div className="text-[10px] text-neutral-500">
-                  e-bfh.com/tribute/{activeCase.caseNumber}
-                </div>
               </div>
+            )}
 
-              <div className="flex flex-wrap justify-center gap-3">
-                <button
-                  onClick={() => {
-                    setContributorStep(2);
-                    setContributorName('');
-                    setWrittenMemory('');
-                    setLivePoemPreview([]);
-                  }}
-                  className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-5 py-2.5 rounded-xl transition"
-                >
-                  Share Another Memory
-                </button>
-
-                <button
-                  onClick={() => setStudioMode('book')}
-                  className="bg-[#af893e] hover:bg-[#967432] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition flex items-center space-x-1.5 shadow-md"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>View Coffee Table Volume</span>
-                </button>
-              </div>
-            </div>
-          )}
-
+          </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODE 2: KEEPSAKE COFFEE TABLE VOLUME (MEMORIAL DOCUMENT FLIPBOOK)          */}
-      {/* ========================================================================= */}
-      {studioMode === 'book' && (
-        <div className="space-y-6">
+      {/* ======================================================== */}
+      {/* VIEW 2: KEEPSAKE COFFEE TABLE BOOK (Museum Grade)        */}
+      {/* ======================================================== */}
+      {activeTab === 'document' && (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
           
-          {/* Header Controls */}
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center space-x-2">
-                <span className="bg-amber-100 text-[#b45309] text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
-                  Museum-Grade Memorial Publication
-                </span>
-                <span className="text-xs text-neutral-400">•</span>
-                <span className="text-xs font-bold text-emerald-700">
-                  {bookCompilation.totalTributes} Approved Entries
-                </span>
-              </div>
-              <h3 className="font-serif-title text-2xl font-bold text-neutral-900">
+              <h2 className="font-serif text-3xl font-semibold text-[#1a1815]">
                 Keepsake Coffee Table Volume
-              </h3>
-              <p className="text-xs text-neutral-500">
-                Elegantly typeset memorial volume featuring AI poetic stanzas, archival photo spreads, and scan-to-stream QR audio codes.
+              </h2>
+              <p className="text-xs text-[#69635b]">
+                Museum-grade memorial book formatted with poetic stanzas, archival photos, and audio QR codes.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {onOpenFamilyProofApproval && (
-                <button
-                  onClick={onOpenFamilyProofApproval}
-                  className="bg-purple-900 hover:bg-purple-800 text-purple-100 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-1.5 shadow-md border border-purple-400/40"
-                  title="Open Family Proof Approval & Commercial Press Lock Hub"
-                >
-                  <Lock className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Family Proof Approval & Press Lock</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => window.print()}
-                className="bg-[#af893e] hover:bg-[#967432] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center space-x-1.5 shadow-md shadow-amber-950/20"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print / Export High-Res PDF Book</span>
-              </button>
-            </div>
+            <button
+              onClick={() => window.print()}
+              className="bg-[#af893e] hover:bg-[#96732f] text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-md transition flex items-center gap-2 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print / Save High-Res Coffee Table Book</span>
+            </button>
           </div>
 
-          {/* LUXURY COFFEE TABLE BOOK CONTAINER */}
-          <div className="bg-[#faf7f2] border-2 border-[#e6dac1] rounded-3xl p-6 sm:p-12 shadow-2xl space-y-12 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0">
+          {/* Book Canvas Container */}
+          <div className="bg-white border border-[#e6dac1] rounded-2xl shadow-xl p-8 sm:p-14 font-serif text-[#191714] space-y-12">
             
-            {/* BOOK COVER PAGE FRAME */}
-            <div className="bg-white border-2 border-[#e6dac1] rounded-3xl p-8 sm:p-14 text-center space-y-6 shadow-md relative overflow-hidden">
-              <div className="text-xl text-[#af893e] tracking-[8px] select-none">
+            {/* Book Cover / Frontispiece */}
+            <div className="text-center space-y-4 border-b-2 border-[#f5eedf] pb-10">
+              <div className="text-lg text-[#af893e] tracking-[8px]">
                 ❧ &nbsp; ✦ &nbsp; ❧
               </div>
 
-              {/* Oval Portrait Frame */}
-              <div className="w-44 h-56 rounded-[50%] mx-auto overflow-hidden border-4 border-[#af893e] p-1 bg-white shadow-xl">
+              <div className="w-36 h-36 mx-auto rounded-full p-1 border-2 border-[#af893e] shadow-lg">
                 <img
-                  src={bookCompilation.coverPhotoUrl}
-                  alt={bookCompilation.decedentName}
-                  className="w-full h-full object-cover rounded-[50%]"
+                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&q=80"
+                  alt={decedentDisplayName}
+                  className="w-full h-full rounded-full object-cover"
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="font-serif-title text-xs uppercase tracking-[4px] text-neutral-500">
-                  In Loving Memory & Enduring Grace
+              <div className="space-y-1">
+                <div className="text-xs font-sans tracking-[3px] uppercase font-bold text-[#8c7d6b]">
+                  IN LOVING MEMORY
                 </div>
-                <h1 className="font-serif-title text-3xl sm:text-5xl font-bold text-[#af893e]">
+                <h1 className="text-4xl sm:text-5xl font-normal tracking-wide text-[#af893e]">
                   {bookCompilation.decedentName}
                 </h1>
-                <div className="font-serif-body italic text-sm text-neutral-600">
-                  {bookCompilation.datesOfGrace}
-                </div>
-                <div className="text-xs font-semibold text-neutral-500 pt-1">
-                  {bookCompilation.chapelName}
+                <div className="text-xs italic text-[#8c7d6b] pt-1">
+                  {bookCompilation.datesOfGrace} · Benta's Memorial Chapel
                 </div>
               </div>
 
-              <p className="font-serif-body text-xs sm:text-sm text-neutral-700 italic max-w-xl mx-auto leading-relaxed border-t border-b border-amber-200/80 py-4">
-                {bookCompilation.biographicalEpitaph}
+              <p className="text-sm italic text-[#483f34] max-w-xl mx-auto leading-relaxed pt-2">
+                “A devoted educator of 38 years, master botanist, and beloved matriarch whose radiant wisdom, generous kitchen, and unforgettable bedtime stories touched generations of family and community members.”
               </p>
-
-              <div className="text-[11px] text-[#af893e] font-serif-title uppercase tracking-widest">
-                Coffee Table Keepsake Edition • Volume I
-              </div>
             </div>
 
-            {/* ARCHIVAL LIFE PHOTO SPREAD */}
+            {/* Archival Photo Spread */}
+            <div className="grid grid-cols-2 gap-4">
+              <img
+                src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=600&q=80"
+                alt="Family Memory"
+                className="w-full h-48 sm:h-56 object-cover rounded border border-[#ece5d8]"
+              />
+              <img
+                src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=600&q=80"
+                alt="Wedding Memory"
+                className="w-full h-48 sm:h-56 object-cover rounded border border-[#ece5d8]"
+              />
+            </div>
+
+            {/* Chapter 1: Spouse */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-[#e6dac1] pb-2">
-                <span className="font-serif-title text-sm uppercase tracking-widest text-[#af893e] font-bold">
-                  Archival Life Mosaic Spread
-                </span>
-                <span className="text-xs font-serif-body italic text-neutral-500">
-                  Moments of Grace & Family Heritage
-                </span>
+              <div className="text-center font-serif text-xl sm:text-2xl text-[#af893e] uppercase tracking-widest border-b border-[#e6dac1] pb-2">
+                Words from Spouse & Life Partner
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white p-3 rounded-2xl border border-[#e6dac1] shadow-sm space-y-2">
-                  <img
-                    src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=800&q=80"
-                    alt="Family Tradition"
-                    className="w-full h-48 object-cover rounded-xl"
-                  />
-                  <div className="text-[11px] font-serif-body italic text-neutral-600 text-center">
-                    Sunday dinner gathering and fellowship with extended family.
-                  </div>
+              <div className="bg-[#faf7f2] border-l-4 border-[#af893e] p-6 rounded-r-xl space-y-3">
+                <span className="inline-block text-[10px] font-sans font-bold uppercase tracking-wider bg-[#ccfbf1] text-[#0d9488] px-2 py-0.5 rounded-full">
+                  🤝 Help & Sacrifice
+                </span>
+                <div className="italic text-sm text-[#82662c]">
+                  “What was a quiet, private ritual of love she did every single day?”
                 </div>
-
-                <div className="bg-white p-3 rounded-2xl border border-[#e6dac1] shadow-sm space-y-2">
-                  <img
-                    src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=800&q=80"
-                    alt="Wedding Celebration"
-                    className="w-full h-48 object-cover rounded-xl"
-                  />
-                  <div className="text-[11px] font-serif-body italic text-neutral-600 text-center">
-                    Celebrating 52 years of sacred devotion and partnership.
+                <p className="text-base text-[#24201b] leading-relaxed italic">
+                  Every morning began before the sun with quiet chamomile tea.<br />
+                  She left notes upon the counter—nineteen thousand over fifty years—<br />
+                  words of steady courage that held our house upright through every storm.<br />
+                  She never asked for gratitude, only that we met the morning with hope.
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-dashed border-[#e6dac1] text-xs">
+                  <div>
+                    <strong className="text-[#191613]">— Robert Vance</strong>, <span className="italic text-[#8c7d6b]">Husband of 52 Years</span>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* MEMORIAL TRIBUTE CHAPTERS & POETIC STANZAS */}
-            <div className="space-y-8">
-              {tributes
-                .filter(t => t.status === 'approved' || t.status === 'featured')
-                .map((tribute, idx) => {
-                  const pillarMeta = NARRATIVE_PILLARS[tribute.pillar] || NARRATIVE_PILLARS.joy;
-
-                  return (
-                    <div
-                      key={tribute.id}
-                      className="bg-white border border-[#e6dac1] rounded-3xl p-6 sm:p-8 shadow-md space-y-4 relative"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f5eedf] pb-3">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${pillarMeta.badgeBg}`}>
-                          {pillarMeta.icon} {pillarMeta.label}
-                        </span>
-
-                        <div className="text-xs text-neutral-400 font-serif-title">
-                          Chapter Entry #{idx + 1}
-                        </div>
-                      </div>
-
-                      {/* Prompt Question */}
-                      <div className="font-serif-title font-bold text-base sm:text-lg text-neutral-900">
-                        {tribute.promptQuestion}
-                      </div>
-
-                      {/* Poetic Stanzas */}
-                      <div className="bg-[#faf7f2] border-l-4 border-[#af893e] p-4 sm:p-5 rounded-r-2xl space-y-2.5">
-                        {(tribute.poeticStanzas && tribute.poeticStanzas.length > 0
-                          ? tribute.poeticStanzas
-                          : [tribute.rawTranscript || '']
-                        ).map((stanza, sIdx) => (
-                          <p
-                            key={sIdx}
-                            className="font-serif-body text-xs sm:text-sm text-neutral-800 italic leading-relaxed whitespace-pre-line"
-                          >
-                            {stanza}
-                          </p>
-                        ))}
-                      </div>
-
-                      {/* Signature & Scan-to-Stream QR Audio Chip */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#f5eedf]">
-                        <div>
-                          <div className="font-bold text-xs sm:text-sm text-neutral-900 font-serif-title">
-                            — {tribute.contributorName}
-                          </div>
-                          <div className="text-[11px] text-[#8c7d6b] italic">
-                            {tribute.contributorRelation}
-                          </div>
-                        </div>
-
-                        {/* Interactive Clickable & Printable Scan-to-Stream QR Pill */}
-                        <div
-                          onClick={() => setActivePlaybackTribute(tribute)}
-                          className="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-[#b45309] px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center space-x-2 shadow-sm"
-                          title="Click to stream or scan with mobile phone"
-                        >
-                          <QrCode className="w-4 h-4 text-[#af893e]" />
-                          <span>
-                            {tribute.mediaType === 'video' ? '🎥 Watch Video Tribute' : `📱 Scan to Stream Voice (${tribute.audioDuration || '02:14'})`}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Book Colophon */}
-            <div className="text-center pt-8 border-t border-[#e6dac1] text-xs font-serif-body text-neutral-500 space-y-1">
-              <div>❧ &nbsp; Published by Benta's Funeral Home · Digital Tribute Keepsake Edition &nbsp; ❧</div>
-              <div className="text-[10px]">630 Saint Nicholas Avenue, New York, NY 10030 · Permanent Master Archive</div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODE 3: FAMILY & ADMIN MODERATION HUB (CURATION & COMPILER)                */}
-      {/* ========================================================================= */}
-      {studioMode === 'admin' && (
-        <div className="space-y-6">
-          
-          {/* Moderation Controls Header */}
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
-                    Director & Family Curation Console
+                  <span className="bg-white border border-[#e6dac1] text-[#af893e] text-[10px] font-sans font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    📱 Scan to Stream Voice Recording (02:14)
                   </span>
                 </div>
-                <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
-                  Tribute Moderation & AI Keepsake Compiler
-                </h3>
-                <p className="text-xs text-neutral-500">
-                  Review incoming voice and video recordings, format raw prose into 4-line poetic stanzas with 1 click, and compile the master volume.
-                </p>
+              </div>
+            </div>
+
+            {/* Chapter 2: Children */}
+            <div className="space-y-4">
+              <div className="text-center font-serif text-xl sm:text-2xl text-[#af893e] uppercase tracking-widest border-b border-[#e6dac1] pb-2">
+                Words from Her Children
               </div>
 
-              {/* Master Compiler Button */}
-              <button
-                onClick={handleCompileKeepsakeBook}
-                disabled={isCompilingBook}
-                className="bg-[#af893e] hover:bg-[#967432] text-white font-bold text-xs px-5 py-3 rounded-2xl transition flex items-center space-x-2 shadow-lg shadow-amber-950/20"
-              >
-                <Sparkles className={`w-4 h-4 text-amber-200 ${isCompilingBook ? 'animate-spin' : ''}`} />
-                <span>{isCompilingBook ? 'Compiling Volume...' : '⚡ Re-Compile Keepsake Volume'}</span>
-              </button>
-            </div>
-
-            {/* Filter Chips */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { id: 'all', label: `All Entries (${tributes.length})` },
-                { id: 'pending', label: `Pending Review (${tributes.filter(t => t.status === 'pending').length})` },
-                { id: 'approved', label: `Approved for Book (${tributes.filter(t => t.status === 'approved').length})` },
-                { id: 'featured', label: `Featured Tributes (${tributes.filter(t => t.status === 'featured').length})` }
-              ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setModerationFilter(f.id as any)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                    moderationFilter === f.id
-                      ? 'bg-[#991b1b] text-white shadow-sm'
-                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Compiler Progress Modal / Banner */}
-          {isCompilingBook && (
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 rounded-3xl p-6 shadow-lg space-y-3 animate-fadeIn">
-              <div className="flex justify-between items-center text-xs font-bold text-neutral-800">
-                <span className="flex items-center space-x-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-[#991b1b]" />
-                  <span>Keepsake Presentation Compiler in Progress</span>
+              <div className="bg-[#faf7f2] border-l-4 border-[#af893e] p-6 rounded-r-xl space-y-3">
+                <span className="inline-block text-[10px] font-sans font-bold uppercase tracking-wider bg-[#fef3c7] text-[#d97706] px-2 py-0.5 rounded-full">
+                  ✨ Joy & Laughter
                 </span>
-                <span className="text-[#b45309] font-mono">{compileProgress}%</span>
-              </div>
-              <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-[#991b1b] to-[#af893e] h-full transition-all duration-300 rounded-full"
-                  style={{ width: `${compileProgress}%` }}
-                />
-              </div>
-              <p className="text-xs text-neutral-600 font-medium italic">{compileStepLabel}</p>
-            </div>
-          )}
-
-          {/* Moderation Queue Cards */}
-          <div className="space-y-4">
-            {tributes
-              .filter(t => moderationFilter === 'all' || t.status === moderationFilter)
-              .map(tribute => {
-                const pillarMeta = NARRATIVE_PILLARS[tribute.pillar] || NARRATIVE_PILLARS.joy;
-
-                return (
-                  <div
-                    key={tribute.id}
-                    className="bg-white border border-neutral-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 hover:border-amber-300 transition"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-[#b45309] flex items-center justify-center font-bold text-sm font-serif-title uppercase">
-                          {tribute.contributorName.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-bold text-sm text-neutral-900 flex items-center space-x-2">
-                            <span>{tribute.contributorName}</span>
-                            <span className="text-xs text-neutral-500 font-normal">({tribute.contributorRelation})</span>
-                          </div>
-                          <div className="text-[11px] text-neutral-400">
-                            Recorded: {tribute.recordedDate} • {tribute.contributorEmail || tribute.contributorPhone || 'Guest Submission'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Status Badge */}
-                      <div className="flex items-center space-x-2">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${pillarMeta.badgeBg}`}>
-                          {pillarMeta.icon} {pillarMeta.label}
-                        </span>
-
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                          tribute.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : tribute.status === 'featured'
-                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                            : tribute.status === 'pending'
-                            ? 'bg-sky-100 text-sky-800'
-                            : 'bg-neutral-100 text-neutral-600'
-                        }`}>
-                          {tribute.status}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Question & Transcript / Verse */}
-                    <div className="space-y-2">
-                      <div className="text-xs font-bold text-neutral-800">
-                        {tribute.promptQuestion}
-                      </div>
-
-                      <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-xs text-neutral-700 leading-relaxed font-serif-body whitespace-pre-line">
-                        {tribute.poeticStanzas && tribute.poeticStanzas.length > 0 
-                          ? tribute.poeticStanzas.join('\n\n')
-                          : tribute.rawTranscript}
-                      </div>
-
-                      {tribute.privateNoteToFamily && (
-                        <div className="text-[11px] text-neutral-500 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60 italic">
-                          🔒 <strong>Private note to family:</strong> "{tribute.privateNoteToFamily}"
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-100">
-                      <div className="flex items-center space-x-2">
-                        {/* Audio / Video Stream Preview Button */}
-                        <button
-                          onClick={() => setActivePlaybackTribute(tribute)}
-                          className="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center space-x-1.5"
-                        >
-                          <Play className="w-3.5 h-3.5 text-[#af893e]" />
-                          <span>Listen Memory ({tribute.audioDuration || '02:14'})</span>
-                        </button>
-
-                        {/* 1-Click AI Format Poem */}
-                        <button
-                          onClick={() => handleFormatSingleTributePoem(tribute.id)}
-                          className="bg-amber-50 hover:bg-amber-100 text-[#b45309] border border-amber-300 font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center space-x-1 shadow-sm"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>✨ Format into Poetic Stanza</span>
-                        </button>
-                      </div>
-
-                      {/* Approval Status Controls */}
-                      <div className="flex items-center space-x-2">
-                        {tribute.status !== 'approved' && (
-                          <button
-                            onClick={() => handleUpdateTributeStatus(tribute.id, 'approved')}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1 shadow-sm"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Approve for Book</span>
-                          </button>
-                        )}
-
-                        {tribute.status !== 'featured' && (
-                          <button
-                            onClick={() => handleUpdateTributeStatus(tribute.id, 'featured')}
-                            className="bg-[#af893e] hover:bg-[#967432] text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1"
-                          >
-                            <Award className="w-3.5 h-3.5" />
-                            <span>Feature in Cover Spread</span>
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => handleUpdateTributeStatus(tribute.id, 'archived')}
-                          className="text-neutral-400 hover:text-red-600 text-xs font-semibold px-2 py-1"
-                        >
-                          Archive
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODE 4: COMMUNITY OUTREACH & QR INVITATIONS                                */}
-      {/* ========================================================================= */}
-      {studioMode === 'invites' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Left Column: Personalized Invite Dispatch Form */}
-          <div className="lg:col-span-5 bg-white border border-neutral-200 rounded-3xl p-6 sm:p-7 shadow-sm space-y-5">
-            <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-[#b45309] flex items-center justify-center">
-                    <Send className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                    Dispatch Personalized Tribute Invite
-                  </h4>
+                <div className="italic text-sm text-[#82662c]">
+                  “What's a moment she made you proud in a way that took your breath away?”
                 </div>
-                <p className="text-[11px] text-neutral-500">
-                  Send a private link directly to a friend's phone or email
+                <p className="text-base text-[#24201b] leading-relaxed italic">
+                  When the school closed its music hall, she opened our front door.<br />
+                  Eight retired teachers, four years of after-school violin strings in our living room,<br />
+                  never asking permission from the town board, only answering the call of children who wanted to play.<br />
+                  Her life was an unending song of quiet courage.
                 </p>
-              </div>
-
-              {/* Channel Selector */}
-              <div className="flex bg-neutral-100 p-0.5 rounded-lg text-xs font-bold">
-                {(['sms', 'email', 'whatsapp'] as const).map(ch => (
-                  <button
-                    key={ch}
-                    type="button"
-                    onClick={() => setShareChannel(ch)}
-                    className={`px-2.5 py-1 rounded-md transition capitalize ${
-                      shareChannel === ch
-                        ? 'bg-[#991b1b] text-white shadow-sm'
-                        : 'text-neutral-600 hover:text-neutral-900'
-                    }`}
-                  >
-                    {ch}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <form onSubmit={handleSendFriendInvite} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  Friend / Relative Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={shareRecipientName}
-                  onChange={(e) => setShareRecipientName(e.target.value)}
-                  placeholder="e.g. Aunt Gloria, Pastor Williams, Dr. Hayes"
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  {shareChannel === 'sms' ? 'Mobile Phone Number (for SMS Link)' : shareChannel === 'email' ? 'Email Address' : 'WhatsApp Phone Number'} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type={shareChannel === 'email' ? 'email' : 'tel'}
-                  value={shareRecipientContact}
-                  onChange={(e) => setShareRecipientContact(e.target.value)}
-                  placeholder={shareChannel === 'email' ? 'name@example.com' : '(212) 555-0199'}
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900 outline-none focus:border-[#991b1b]"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-neutral-700">
-                    Personal Note & Memory Request
-                  </label>
-                  <span className="text-[10px] text-neutral-400">Quick Templates:</span>
-                </div>
-
-                {/* Quick Template Chips */}
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {[
-                    { label: 'General Friend', text: `Dear friend, we are gathering living voice memories, prayers, and reflections for ${activeCase.decedent.legalName}'s digital keepsake archive. Please tap the link to listen and record your own reflection:` },
-                    { label: 'Church & Choir', text: `Dear Church Family, ${activeCase.decedent.legalName} always treasured our Sunday worship together. We would be deeply blessed if you could share a prayer or favorite memory on their digital tribute audio archive:` },
-                    { label: 'Work Colleague', text: `Dear Colleague, ${activeCase.decedent.legalName}'s legacy in education and community leadership touched so many. Please record a short story or memory for our permanent family keepsake archive:` }
-                  ].map(tmpl => (
-                    <button
-                      key={tmpl.label}
-                      type="button"
-                      onClick={() => setShareNote(tmpl.text)}
-                      className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[10px] font-semibold px-2 py-1 rounded-md transition"
-                    >
-                      {tmpl.label}
-                    </button>
-                  ))}
-                </div>
-
-                <textarea
-                  rows={3}
-                  value={shareNote}
-                  onChange={(e) => setShareNote(e.target.value)}
-                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl p-3 text-xs text-neutral-900 outline-none focus:border-[#991b1b] resize-none"
-                  placeholder="Type a custom message for this friend..."
-                />
-              </div>
-
-              {/* Message Bubble Preview */}
-              <div className="bg-neutral-100 border border-neutral-200 rounded-2xl p-3 text-[11px] space-y-1">
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">
-                  {shareChannel.toUpperCase()} Dispatch Preview:
-                </span>
-                <p className="text-neutral-800 italic">
-                  "{shareNote || `We are gathering voice memories for ${activeCase.decedent.legalName}.`} https://e-bfh.com/tribute/{activeCase.caseNumber}"
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSendingInvite}
-                className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold text-xs py-3 rounded-xl transition flex items-center justify-center space-x-2 shadow-md shadow-red-950/20"
-              >
-                {isSendingInvite ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
-                ) : (
-                  <Send className="w-4 h-4 text-amber-300" />
-                )}
-                <span>{isSendingInvite ? 'Dispatching...' : `Dispatch Invite via ${shareChannel.toUpperCase()}`}</span>
-              </button>
-            </form>
-          </div>
-
-          {/* Right Column: Invitation Activity & Status Tracker */}
-          <div className="lg:col-span-7 bg-white border border-neutral-200 rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
-              <div className="space-y-1">
-                <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                  Community Activity & Invitation Log ({invitations.length})
-                </h4>
-                <p className="text-[11px] text-neutral-500">
-                  Real-time delivery status, friend listening sessions, and new voice recordings
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIsQRCardModalOpen(true)}
-                className="bg-amber-50 hover:bg-amber-100 text-[#b45309] border border-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center space-x-1"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>4-Up Print Cards</span>
-              </button>
-            </div>
-
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {invitations.map(inv => (
-                <div
-                  key={inv.id}
-                  className="bg-neutral-50/80 border border-neutral-200 rounded-2xl p-4 space-y-2 hover:border-amber-300 transition"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-xl bg-neutral-200 flex items-center justify-center text-xs font-bold text-neutral-700 uppercase font-serif-title">
-                        {inv.recipientName.charAt(0)}
-                      </div>
-                      <div>
-                        <strong className="text-xs font-bold text-neutral-900 block">
-                          {inv.recipientName}
-                        </strong>
-                        <span className="text-[11px] text-neutral-500 font-mono">
-                          {inv.channel.toUpperCase()}: {inv.recipientContact}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Status Badge */}
-                    <div className="flex items-center space-x-2">
-                      {inv.status === 'sent' && (
-                        <span className="bg-sky-50 text-sky-800 border border-sky-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-sky-600" />
-                          <span>Invite Sent</span>
-                        </span>
-                      )}
-                      {inv.status === 'opened' && (
-                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1">
-                          <Eye className="w-3 h-3 text-amber-600" />
-                          <span>Opened • Listening</span>
-                        </span>
-                      )}
-                      {inv.status === 'recorded' && (
-                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1 shadow-sm">
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span>Voice Memory Recorded</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-neutral-600 bg-white p-2 rounded-xl border border-neutral-200/60 line-clamp-1 italic">
-                    "{inv.personalNote}"
-                  </p>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-neutral-200/60 text-[11px]">
-                    <span className="text-neutral-400 text-[10px]">Dispatched: {inv.sentAt}</span>
-
-                    <div className="flex items-center space-x-1.5">
-                      {inv.status !== 'recorded' && (
-                        <button
-                          onClick={() => handleSimulateInviteAction(inv.id, inv.status === 'sent' ? 'opened' : 'recorded')}
-                          className="bg-neutral-200 hover:bg-neutral-300 text-neutral-800 font-semibold text-[10px] px-2 py-1 rounded-lg transition"
-                          title="Simulate recipient clicking link and recording memory"
-                        >
-                          {inv.status === 'sent' ? 'Simulate Link Opened' : 'Simulate Recorded Memory'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODE 5: CLOUD ARCHIVAL & 90-DAY PURGE RULES TELEMETRY                      */}
-      {/* ========================================================================= */}
-      {studioMode === 'cloud' && (
-        <div className="space-y-6">
-          
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-            <div className="space-y-1 border-b border-neutral-200 pb-4">
-              <div className="flex items-center space-x-2">
-                <span className="bg-sky-100 text-sky-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
-                  PostgreSQL & Storage Archival Architecture
-                </span>
-              </div>
-              <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-neutral-900">
-                Permanent Master Archival & 90-Day Raw Storage Purge
-              </h3>
-              <p className="text-xs text-neutral-500">
-                To guarantee permanent access while optimizing storage costs and family privacy, Digi-Tribute implements an automated 2-tier retention lifecycle.
-              </p>
-            </div>
-
-            {/* Architecture Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Card 1: Permanent Master Keepsake Tier */}
-              <div className="bg-amber-50/70 border-2 border-amber-300 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#af893e] text-white flex items-center justify-center font-bold text-lg">
-                    🔒
-                  </div>
+                <div className="flex items-center justify-between pt-2 border-t border-dashed border-[#e6dac1] text-xs">
                   <div>
-                    <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                      Permanent Master Archival Tier (`tributes-final`)
-                    </h4>
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                      Preserved Forever
-                    </span>
+                    <strong className="text-[#191613]">— Claire Vance-Miller</strong>, <span className="italic text-[#8c7d6b]">Daughter</span>
                   </div>
-                </div>
-
-                <div className="space-y-2 text-xs text-neutral-700 leading-relaxed">
-                  <div className="flex items-start space-x-2">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span><strong>High-Res Printable Coffee Table PDF:</strong> Bound memorial document with typography and photo spreads.</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span><strong>Master Compiled Audio Reel:</strong> Seamlessly stitched prelude & service audio tracks.</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span><strong>Scan-to-Stream QR Endpoints:</strong> Lifetime mobile playback routing for family keepsakes.</span>
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-xl border border-amber-200 text-xs font-mono text-neutral-800">
-                  Storage Used: <strong>{storageTelemetry.permanentMasterUsedMB} MB</strong> ({storageTelemetry.permanentKeepsakeFilesCount} master assets)
+                  <span className="bg-white border border-[#e6dac1] text-[#af893e] text-[10px] font-sans font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    🎥 Watch Video Tribute Recording (01:45)
+                  </span>
                 </div>
               </div>
+            </div>
 
-              {/* Card 2: 90-Day Raw Footage Purge Policy */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-neutral-800 text-amber-300 flex items-center justify-center font-bold text-lg">
-                    ⏳
-                  </div>
+            {/* Chapter 3: Childhood Friends */}
+            <div className="space-y-4">
+              <div className="text-center font-serif text-xl sm:text-2xl text-[#af893e] uppercase tracking-widest border-b border-[#e6dac1] pb-2">
+                Childhood & Lifelong Friends
+              </div>
+
+              <div className="bg-[#faf7f2] border-l-4 border-[#af893e] p-6 rounded-r-xl space-y-3">
+                <span className="inline-block text-[10px] font-sans font-bold uppercase tracking-wider bg-[#ede9fe] text-[#7c3aed] px-2 py-0.5 rounded-full">
+                  👁️ Witnessing in Action
+                </span>
+                <div className="italic text-sm text-[#82662c]">
+                  “What was an adventure only the two of you knew about?”
+                </div>
+                <p className="text-base text-[#24201b] leading-relaxed italic">
+                  In the summer of '62, our cedar fence raft sank in the mud of Mill Creek.<br />
+                  While I was ready to cry, Eleanor stood in the reeds and laughed until she couldn't breathe.<br />
+                  'Now we know how to build a better one,' she smiled.<br />
+                  That was how she treated every broken thing in this world.
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-dashed border-[#e6dac1] text-xs">
                   <div>
-                    <h4 className="font-serif-title font-bold text-base text-neutral-900">
-                      90-Day Raw Purge Lifecycle (`tributes-raw`)
-                    </h4>
-                    <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">
-                      Automated Cleanup
-                    </span>
+                    <strong className="text-[#191613]">— Martha Hayes</strong>, <span className="italic text-[#8c7d6b]">Childhood Friend of 63 Years</span>
                   </div>
+                  <span className="bg-white border border-[#e6dac1] text-[#af893e] text-[10px] font-sans font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    📱 Scan to Stream Voice Recording (03:02)
+                  </span>
                 </div>
-
-                <div className="space-y-2 text-xs text-neutral-700 leading-relaxed">
-                  <div className="flex items-start space-x-2">
-                    <span className="text-[#b45309] font-bold">•</span>
-                    <span><strong>Serverless Edge Function:</strong> <code>functions/purge-raw-footage</code> runs daily at 03:00 UTC.</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <span className="text-[#b45309] font-bold">•</span>
-                    <span><strong>PostgreSQL pg_cron Trigger:</strong> Automatically flags unapproved test cuts & raw high-bitrate scratch files.</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <span className="text-[#b45309] font-bold">•</span>
-                    <span><strong>Privacy Assurance:</strong> Raw scratch takes are permanently removed to protect family confidentiality.</span>
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-xl border border-neutral-200 text-xs font-mono text-neutral-800">
-                  Raw Storage: <strong>{storageTelemetry.rawStorageUsedMB} MB</strong> / {storageTelemetry.rawStorageLimitMB} MB ({storageTelemetry.retentionDaysRemaining} days remaining in current cycle)
-                </div>
-              </div>
-
-            </div>
-
-            {/* Storage Meter & RLS Security Status */}
-            <div className="bg-neutral-900 text-white rounded-2xl p-5 space-y-3">
-              <div className="flex flex-wrap items-center justify-between text-xs font-bold">
-                <span className="flex items-center space-x-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>Row-Level Security (RLS) & Storage Quota Health</span>
-                </span>
-                <span className="text-amber-400 font-mono">
-                  {storageTelemetry.rlsPoliciesActive} Active Policies • Operational
-                </span>
-              </div>
-
-              <div className="w-full bg-neutral-800 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-emerald-500 h-full rounded-full"
-                  style={{ width: `${(storageTelemetry.rawStorageUsedMB / storageTelemetry.rawStorageLimitMB) * 100}%` }}
-                />
-              </div>
-
-              <div className="flex justify-between text-[11px] text-neutral-400">
-                <span>Last Daily Purge: {storageTelemetry.lastDailyPurgeTimestamp}</span>
-                <span>Next Scheduled Cycle: {storageTelemetry.nextScheduledPurgeTimestamp}</span>
               </div>
             </div>
 
+            <div className="text-center pt-8 border-t border-[#e6dac1] text-xs text-[#8c8071]">
+              ❧ &nbsp; Published by Benta's Funeral Home · Digital Tribute Keepsake Edition &nbsp; ❧
+            </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: INTERACTIVE SCAN-TO-STREAM AUDIO / VIDEO PLAYER MODAL             */}
-      {/* ========================================================================= */}
-      {activePlaybackTribute && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white border-2 border-amber-400 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 text-center relative">
-            
-            <button
-              onClick={() => {
-                setActivePlaybackTribute(null);
-                setIsPlayingAudio(false);
-              }}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-900 p-2 rounded-full hover:bg-neutral-100 transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#991b1b] to-[#b45309] text-white flex items-center justify-center font-serif-title font-bold text-xl mx-auto shadow-md border-2 border-amber-300">
-              BFH
-            </div>
-
-            <div className="space-y-1">
-              <span className="bg-amber-100 text-[#b45309] text-[10px] font-bold uppercase tracking-widest px-3 py-0.5 rounded-full">
-                🕊️ Living Memorial Audio Stream
-              </span>
-              <h3 className="font-serif-title text-xl font-bold text-neutral-900">
-                {activePlaybackTribute.contributorName}
-              </h3>
-              <div className="text-xs text-neutral-500 italic">
-                {activePlaybackTribute.contributorRelation} • {activePlaybackTribute.recordedDate}
-              </div>
-            </div>
-
-            {/* Prompt */}
-            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 text-xs font-semibold text-neutral-800 leading-relaxed">
-              {activePlaybackTribute.promptQuestion}
-            </div>
-
-            {/* Black Audio Canvas */}
-            <div className="bg-[#181614] rounded-2xl p-5 text-white shadow-inner space-y-3">
-              <div className="flex justify-between items-center text-xs text-amber-400 font-mono">
-                <span className="flex items-center space-x-1">
-                  <Radio className={`w-3.5 h-3.5 ${isPlayingAudio ? 'text-red-500 animate-pulse' : ''}`} />
-                  <span>{isPlayingAudio ? 'NOW STREAMING' : 'READY TO PLAY'}</span>
-                </span>
-                <span>{activePlaybackTribute.audioDuration || '02:14'}</span>
-              </div>
-
-              {/* Animated Waveform Bars */}
-              <div className="flex items-center justify-center gap-1.5 h-14 my-2">
-                {(activePlaybackTribute.audioWaveData || [20, 35, 50, 28, 54, 40, 22, 46, 18, 32, 44, 30, 52, 38]).map((h, idx) => (
-                  <div
-                    key={idx}
-                    className={`w-1.5 bg-[#af893e] rounded-full transition-all duration-300 ${
-                      isPlayingAudio ? 'animate-pulse' : ''
-                    }`}
-                    style={{
-                      height: isPlayingAudio ? `${Math.max(10, (h * ((idx % 3) + 1) * 0.7) % 48)}px` : `${h}px`,
-                      animationDelay: `${idx * 0.1}s`
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Play / Pause Circular Button */}
-              <button
-                onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                className="w-14 h-14 rounded-full bg-[#af893e] hover:bg-[#c59e4b] text-white flex items-center justify-center text-xl mx-auto shadow-lg shadow-amber-950/40 transition transform active:scale-95"
-              >
-                {isPlayingAudio ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
-              </button>
-            </div>
-
-            {/* Transcript Snippet */}
-            <p className="font-serif-body text-xs text-neutral-600 italic bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-left line-clamp-3">
-              "{activePlaybackTribute.rawTranscript || activePlaybackTribute.promptQuestion}"
+      {/* ======================================================== */}
+      {/* VIEW 3: FUNERAL HOME ADMINISTRATION (Moderation)         */}
+      {/* ======================================================== */}
+      {activeTab === 'admin' && (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
+          <div className="text-center space-y-1">
+            <h2 className="font-serif text-3xl font-semibold text-[#1a1815]">
+              Funeral Home Administration
+            </h2>
+            <p className="text-xs text-[#69635b]">
+              Review incoming guest voice and video tributes before publishing to the coffee table volume.
             </p>
+          </div>
 
-            <button
-              onClick={() => {
-                setActivePlaybackTribute(null);
-                setIsPlayingAudio(false);
-              }}
-              className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs py-2.5 rounded-xl transition"
-            >
-              Close Stream
-            </button>
+          <div className="bg-white border border-[#ece5d8] rounded-3xl p-6 sm:p-8 shadow-sm overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-[#ece5d8] text-[#69635b] uppercase text-[11px] font-bold">
+                  <th className="py-3 px-4">Contributor</th>
+                  <th className="py-3 px-4">Relationship</th>
+                  <th className="py-3 px-4">Prompt & Stanza Snippet</th>
+                  <th className="py-3 px-4">Media</th>
+                  <th className="py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#ece5d8]">
+                {tributes.map((item) => (
+                  <tr key={item.id} className="hover:bg-[#faf7f2]/80 transition">
+                    <td className="py-4 px-4">
+                      <strong className="text-[#191714] block text-xs">{item.contributorName}</strong>
+                      <span className="text-[#69635b] text-[11px]">{item.contributorEmail}</span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="inline-block bg-[#f5eedf] text-[#af893e] border border-[#e6dac1] px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase">
+                        {item.contributorRelation || 'Friend'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 max-w-xs">
+                      <em className="text-[#82662c] block text-[11px]">“{item.promptQuestion}”</em>
+                      <span className="text-[#69635b] text-[11px] line-clamp-1 mt-0.5">
+                        {item.poeticStanzas?.[0] || item.rawTranscript}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-1.5 font-semibold text-[#191714]">
+                        <button
+                          onClick={() => setPlayingTributeId(playingTributeId === item.id ? null : item.id)}
+                          className="w-6 h-6 rounded-full bg-[#f5eedf] hover:bg-[#af893e] hover:text-white flex items-center justify-center transition text-[#af893e] cursor-pointer"
+                        >
+                          {playingTributeId === item.id ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-0.5" />}
+                        </button>
+                        <span>🎙️ Voice Only ({item.audioDuration || '03:02'})</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => autoFormatIntoPoem(item.id)}
+                          className="bg-[#af893e] hover:bg-[#96732f] text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs transition cursor-pointer"
+                        >
+                          ✨ Format Poem
+                        </button>
+                        {item.status === 'approved' ? (
+                          <span className="text-[11px] font-bold text-[#38a169] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            Approved
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => approveTribute(item.id, item.contributorName)}
+                            className="bg-[#38a169] hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-xs transition cursor-pointer"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: PRINTABLE 4-UP QR SERVICE CARDS MODAL                            */}
-      {/* ========================================================================= */}
-      {isQRCardModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white border-2 border-amber-400 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+      {/* ======================================================== */}
+      {/* VIEW 4: CLOUD SYNC & 90-DAY ARCHIVAL POLICY             */}
+      {/* ======================================================== */}
+      {activeTab === 'cloud' && (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
+          <div className="text-center space-y-1">
+            <h2 className="font-serif text-3xl font-semibold text-[#1a1815]">
+              Cloud Backend & 90-Day Archival Policy
+            </h2>
+            <p className="text-xs text-[#69635b]">
+              Supabase PostgreSQL multi-tenant schema, RLS policies, and automated 90–day storage purge monitors.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            <div className="flex justify-between items-center border-b border-neutral-200 pb-3">
-              <div className="space-y-1">
-                <h3 className="font-serif-title text-xl font-bold text-neutral-900">
-                  Printable 4-Up Tribute QR Cards for Service
-                </h3>
-                <p className="text-xs text-neutral-500">
-                  Ready to print and place in chapel vestibules, service programs, and memorial envelopes.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIsQRCardModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-900 p-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* 4-Up Printable Grid */}
-            <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-200">
-              {[1, 2, 3, 4].map(idx => (
-                <div key={idx} className="bg-white border-2 border-[#af893e] rounded-2xl p-4 text-center space-y-2 shadow-sm">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#991b1b] to-[#b45309] text-white flex items-center justify-center font-serif-title font-bold text-xs mx-auto">
-                    BFH
-                  </div>
-                  <div className="font-serif-title text-xs font-bold text-neutral-900 leading-tight">
-                    In Memory of {activeCase.decedent.legalName}
-                  </div>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://e-bfh.com/tribute/${activeCase.caseNumber}`}
-                    alt="Tribute QR"
-                    className="w-20 h-20 mx-auto rounded-lg border border-neutral-200"
-                  />
-                  <div className="text-[9px] text-[#b45309] font-bold uppercase tracking-wider">
-                    Scan to Listen & Share Memory
-                  </div>
+            {/* Card 1: Database & Storage Rules */}
+            <div className="bg-white border border-[#ece5d8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-3 text-xs leading-relaxed">
+              <h3 className="text-base font-bold text-[#191714] border-b border-[#ece5d8] pb-2">
+                Database & Storage Rules
+              </h3>
+              <div className="flex items-start gap-2">
+                <span>🔒</span>
+                <div>
+                  <strong>Row Level Security (RLS):</strong> Enabled on all tables
                 </div>
-              ))}
+              </div>
+              <div className="flex items-start gap-2">
+                <span>📦</span>
+                <div>
+                  <strong>Raw Storage Bucket:</strong> <code className="bg-[#f5eedf] text-[#af893e] px-1.5 py-0.5 rounded text-[11px]">tributes-raw</code> (500MB cap)
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span>🎬</span>
+                <div>
+                  <strong>Final Archival:</strong> <code className="bg-[#f5eedf] text-[#af893e] px-1.5 py-0.5 rounded text-[11px]">tributes-final</code> (Permanent)
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span>📚</span>
+                <div>
+                  <strong>Taxonomy:</strong> 20+ Categories with Follow-Up Pairs
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setIsQRCardModalOpen(false)}
-                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold rounded-xl transition"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="px-5 py-2 bg-[#991b1b] hover:bg-red-800 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow-md"
-              >
-                <Printer className="w-3.5 h-3.5 text-amber-300" />
-                <span>Print 4-Up Sheet (Letter / A4)</span>
-              </button>
+            {/* Card 2: Automated 90-Day Purge */}
+            <div className="bg-white border border-[#ece5d8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-3 text-xs leading-relaxed">
+              <h3 className="text-base font-bold text-[#191714] border-b border-[#ece5d8] pb-2">
+                Automated 90–Day Purge
+              </h3>
+              <div className="flex items-start gap-2">
+                <span>⏱️</span>
+                <div>
+                  <strong>Schedule:</strong> Daily at 03:00 UTC (via <code className="bg-[#f5eedf] text-[#af893e] px-1 py-0.5 rounded text-[11px]">pg_cron</code>)
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span>🧹</span>
+                <div>
+                  <strong>Procedure:</strong> <code className="bg-[#f5eedf] text-[#af893e] px-1 py-0.5 rounded text-[11px]">purge_expired_raw_media()</code>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span>⚡</span>
+                <div>
+                  <strong>Edge Function:</strong> <code className="bg-[#f5eedf] text-[#af893e] px-1 py-0.5 rounded text-[11px]">functions/purge-raw-footage</code>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span>🛡️</span>
+                <div>
+                  <strong>Safety:</strong> Coffee Table Book & compiled audio preserved forever
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Realtime Storage Telemetry */}
+            <div className="md:col-span-2 bg-white border border-[#ece5d8] rounded-3xl p-6 shadow-sm flex flex-wrap items-center justify-between gap-4 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📊</span>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-[#69635b]">Raw Storage Allocation</div>
+                  <div className="text-sm font-bold text-[#191714] font-mono">{storageTelemetry.rawStorageUsedMB}MB / {storageTelemetry.rawStorageLimitMB}MB</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-base">🛡️</span>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-[#69635b]">Preserved Archival Keepsakes</div>
+                  <div className="text-sm font-bold text-emerald-700 font-mono">{storageTelemetry.permanentKeepsakeFilesCount} volumes preserved</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-base">⏱️</span>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-[#69635b]">Next pg_cron Purge Run</div>
+                  <div className="text-sm font-bold text-[#af893e] font-mono">{storageTelemetry.nextScheduledPurgeTimestamp}</div>
+                </div>
+              </div>
             </div>
 
           </div>

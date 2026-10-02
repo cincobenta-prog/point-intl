@@ -91,6 +91,19 @@ export const FamilyAccessModal: React.FC<FamilyAccessModalProps> = ({
         c.id.toUpperCase() === cleanCaseNum
       );
 
+      // Check for Master Manager PIN (3995) Override Access
+      const isMasterManagerPin = cleanPin === '3995';
+
+      if (isMasterManagerPin) {
+        setFailedAttempts(0);
+        const targetCase = matched || cases[0];
+        if (targetCase) {
+          onAuthenticateFamily(targetCase);
+          onClose();
+          return;
+        }
+      }
+
       if (!matched) {
         handleFailedAttempt('Invalid Case Number or Security PIN. Please verify your credentials or contact the Family Care Desk.');
         return;
@@ -100,14 +113,16 @@ export const FamilyAccessModal: React.FC<FamilyAccessModalProps> = ({
       // 1. Case-specific webcast/security PIN
       // 2. Informant phone last 4 digits
       // 3. Founding legacy default (1928) or current year (2026)
+      // 4. Master Manager PIN (3995)
       const validPins = [
         matched.webcastSchedule?.securityPin,
         '1928',
         '2026',
+        '3995',
         matched.informant.phone ? matched.informant.phone.replace(/\D/g, '').slice(-4) : undefined
       ].filter(Boolean);
 
-      const isPinValid = validPins.includes(cleanPin);
+      const isPinValid = isMasterManagerPin || validPins.includes(cleanPin);
 
       if (isPinValid) {
         setFailedAttempts(0);
@@ -225,7 +240,7 @@ export const FamilyAccessModal: React.FC<FamilyAccessModalProps> = ({
               />
             </div>
             <p className="text-[10px] text-neutral-500 mt-1">
-              Sent to the Next-of-Kin's mobile phone via Twilio SMS during first intake.
+              Generated upon arrangement completion (or enter Master Manager PIN: <strong className="font-mono text-[#991b1b]">3995</strong>).
             </p>
           </div>
 

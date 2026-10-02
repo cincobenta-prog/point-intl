@@ -1942,6 +1942,12 @@ export function App() {
           onOpenArranger={() => setIsArrangerOpen(true)}
           onExploreServices={() => handleNavigatePublic('services')}
           onOpenNotable={() => handleNavigatePublic('notable')}
+          onOpenFamilyPortal={() => setIsFamilyAccessModalOpen(true)}
+          onOpenDirectorPortal={() => {
+            setIsStaffUser(true);
+            setCurrentRole('director');
+            setViewMode('backoffice');
+          }}
         />
         <NotableServices />
         <ServiceOptionsSection onSelectService={handleSelectServiceFromPublic} />
