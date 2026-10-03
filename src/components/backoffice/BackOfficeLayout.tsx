@@ -199,12 +199,21 @@ export const BackOfficeLayout: React.FC<BackOfficeLayoutProps> = ({
 
             <div className="h-6 w-px bg-neutral-200 hidden sm:block" />
 
-            <div className="flex items-center space-x-2">
-              <span className="font-serif-title font-bold text-[#991b1b] text-base tracking-wide">
+            <div className="flex items-center space-x-2.5">
+              <img
+                src="/images/ebfh/BENTA_logo.png"
+                alt="Benta's Funeral Home"
+                className="h-7 sm:h-8 w-auto object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/images/ebfh/Benta-Flame-MN.png';
+                }}
+              />
+              <span className="font-serif-title font-bold text-[#991b1b] text-base tracking-wide hidden sm:inline">
                 BFH Backoffice
               </span>
               <span className="text-[10px] bg-amber-100 text-[#b45309] px-2 py-0.5 rounded uppercase tracking-widest font-bold hidden md:inline border border-amber-300">
-                Version 2
+                LFD Portal
               </span>
             </div>
           </div>

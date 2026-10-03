@@ -50,9 +50,11 @@ import { PublicNavbar } from './components/public/PublicNavbar';
 import { PublicHero } from './components/public/PublicHero';
 import { NotableServices } from './components/public/NotableServices';
 import { ServiceOptionsSection } from './components/public/ServiceOptionsSection';
+import { PreplanningSection } from './components/public/PreplanningSection';
 import { PublicHistoryFacility } from './components/public/PublicHistoryFacility';
 import { ObituariesTributes } from './components/public/ObituariesTributes';
 import { GriefHealingSection } from './components/public/GriefHealingSection';
+import { PublicFAQsContact } from './components/public/PublicFAQsContact';
 import { ArrangerWizard } from './components/public/ArrangerWizard';
 import { PublicFooter } from './components/public/PublicFooter';
 
@@ -1959,9 +1961,11 @@ export function App() {
         />
         <NotableServices />
         <ServiceOptionsSection onSelectService={handleSelectServiceFromPublic} />
+        <PreplanningSection onOpenArranger={() => setIsArrangerOpen(true)} />
         <PublicHistoryFacility />
         <ObituariesTributes />
         <GriefHealingSection />
+        <PublicFAQsContact />
       </main>
 
       <PublicFooter

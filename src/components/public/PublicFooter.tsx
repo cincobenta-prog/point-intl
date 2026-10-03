@@ -17,20 +17,29 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
           {/* Brand & Mission */}
           <div className="lg:col-span-4 space-y-4">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#991b1b] to-amber-600 p-0.5">
-                <div className="w-full h-full bg-white rounded-full flex items-center justify-center">
-                  <span className="font-serif-title font-bold text-[#991b1b] text-sm">BFH</span>
-                </div>
+              <img
+                src="/images/ebfh/BENTA_logo.png"
+                alt="Benta's Funeral Home, Inc."
+                className="h-11 w-auto object-contain brightness-110"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/images/ebfh/Benta-Flame-MN.png';
+                }}
+              />
+              <div>
+                <h3 className="font-serif-title text-base font-bold text-white tracking-wide leading-tight">
+                  BENTA'S FUNERAL HOME, INC.
+                </h3>
+                <p className="text-[10px] text-amber-400 uppercase font-mono font-semibold">
+                  EST. 1928 • HARLEM, NYC
+                </p>
               </div>
-              <span className="font-serif-title text-base font-bold text-white tracking-wide">
-                BENTA'S FUNERAL HOME, INC.
-              </span>
             </div>
             <p className="text-neutral-400 leading-relaxed font-light">
               Providing personalized, professional, and deeply compassionate funeral and cremation services to Harlem and the Greater New York community continuously since 1928.
             </p>
             <div className="pt-2 text-[11px] text-amber-400 font-semibold">
-              George A. Benta (Founder) • Jason Benta (Director in Charge)
+              George A. Benta (Founder) • Jason Benta (Licensed Funeral Director in Charge)
             </div>
           </div>
 
@@ -41,28 +50,28 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
             </h4>
             <ul className="space-y-2 text-neutral-300">
               <li>
-                <button onClick={() => onNavigate('services')} className="hover:text-amber-400 transition">
+                <button onClick={() => onNavigate('services')} className="hover:text-amber-400 transition cursor-pointer">
                   Direct Cremation & Memorials
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('services')} className="hover:text-amber-400 transition">
+                <button onClick={() => onNavigate('services')} className="hover:text-amber-400 transition cursor-pointer">
                   Traditional Earth Burial
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('services')} className="hover:text-amber-400 transition">
-                  Pre-Need Planning & Trusts
+                <button onClick={() => onNavigate('preplan')} className="hover:text-amber-400 transition cursor-pointer">
+                  Pre-Need Planning & FDIC Trusts
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('notable')} className="hover:text-amber-400 transition">
-                  Notable Services (Cicely Tyson, etc.)
+                <button onClick={() => onNavigate('notable')} className="hover:text-amber-400 transition cursor-pointer">
+                  Notable Services (Cicely Tyson, Langston Hughes)
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('obituaries')} className="hover:text-amber-400 transition">
-                  Recent Obituaries & Digi-Tributes
+                <button onClick={() => onNavigate('obituaries')} className="hover:text-amber-400 transition cursor-pointer">
+                  Recent Obituaries & 360° Digi-Tributes
                 </button>
               </li>
             </ul>
@@ -71,27 +80,27 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
           {/* Grief & Support */}
           <div className="lg:col-span-2 space-y-3">
             <h4 className="font-serif-title text-sm font-bold text-white uppercase tracking-wider">
-              Healing & Care
+              Healing & Community
             </h4>
             <ul className="space-y-2 text-neutral-300">
               <li>
-                <button onClick={() => onNavigate('grief')} className="hover:text-amber-400 transition">
+                <button onClick={() => onNavigate('grief')} className="hover:text-amber-400 transition cursor-pointer">
+                  Four Tasks of Mourning
+                </button>
+              </li>
+              <li>
+                <button onClick={() => onNavigate('grief')} className="hover:text-amber-400 transition cursor-pointer">
                   Grief & Resilience
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('grief')} className="hover:text-amber-400 transition">
-                  Physical Grief Symptoms
+                <button onClick={() => onNavigate('faqs')} className="hover:text-amber-400 transition cursor-pointer">
+                  Frequently Asked Questions
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('grief')} className="hover:text-amber-400 transition">
-                  Honoring Veterans (DD-214)
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('grief')} className="hover:text-amber-400 transition">
-                  Social Security Guidance
+                <button onClick={() => onNavigate('contact')} className="hover:text-amber-400 transition cursor-pointer">
+                  Location & Contact Us
                 </button>
               </li>
             </ul>
@@ -100,7 +109,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
           {/* Contact & Facility */}
           <div className="lg:col-span-3 space-y-3">
             <h4 className="font-serif-title text-sm font-bold text-white uppercase tracking-wider">
-              Harlem Location
+              Harlem Sanctuary
             </h4>
             <div className="space-y-2.5 text-neutral-300">
               <p className="flex items-start space-x-2">
@@ -110,8 +119,11 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
               <p className="flex items-center space-x-2">
                 <Phone className="w-4 h-4 text-amber-400 shrink-0" />
                 <a href="tel:+12122818850" className="hover:text-amber-400 transition font-bold text-white">
-                  (212) 281-8850 (24/7)
+                  Phone: (212) 281-8850 (24/7)
                 </a>
+              </p>
+              <p className="flex items-center space-x-2 text-neutral-400">
+                <span>Fax: (212) 234-3600</span>
               </p>
               <p className="flex items-center space-x-2">
                 <Mail className="w-4 h-4 text-amber-400 shrink-0" />
@@ -125,17 +137,17 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
               {onOpenFamilyPortal && (
                 <button
                   onClick={onOpenFamilyPortal}
-                  className="w-full bg-neutral-800 hover:bg-neutral-700 text-amber-300 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition text-xs shadow-md border border-amber-400/40"
+                  className="w-full bg-neutral-800 hover:bg-neutral-700 text-amber-300 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition text-xs shadow-md border border-amber-400/40 cursor-pointer"
                 >
-                  <span>🕊️ Access Private Family Portal (Vault)</span>
+                  <span>🕊️ Access Private Family Portal</span>
                 </button>
               )}
               <button
                 onClick={onOpenPortal}
-                className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition text-xs shadow-md border border-red-700/50"
+                className="w-full bg-[#991b1b] hover:bg-red-800 text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition text-xs shadow-md border border-red-700/50 cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5 text-amber-300" />
-                <span>Licensed Funeral Director Portal</span>
+                <span>Funeral Directors Portal</span>
               </button>
             </div>
           </div>
@@ -146,7 +158,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
       {/* Bottom Bar */}
       <div className="border-t border-neutral-800 bg-[#0c0a09] py-6 px-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-[11px] text-neutral-400">
-          <p>© {new Date().getFullYear()} Benta's Funeral Home, Inc. All rights reserved. Registered NYS Funeral Establishment.</p>
+          <p>© {new Date().getFullYear()} Benta's Funeral Home, Inc. - All Rights Reserved. NYS Reg #08850.</p>
           <div className="flex space-x-6">
             <span className="hover:text-white cursor-pointer">FTC General Price List</span>
             <span className="hover:text-white cursor-pointer">Privacy Policy & Terms</span>
@@ -157,3 +169,4 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onOpenPortal, onOpen
     </footer>
   );
 };
+
