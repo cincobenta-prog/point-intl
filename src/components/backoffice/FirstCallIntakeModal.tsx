@@ -1052,6 +1052,7 @@ EST. 1928 • HARLEM, NYC`;
                       onChange={(e) => setDispositionType(e.target.value as any)}
                       className="w-full bg-[#fbfbfd] border border-neutral-300 rounded-xl p-2.5 font-semibold outline-none focus:border-[#991b1b]"
                     >
+                      <option value="undecided">To Be Determined / Consultation with Director</option>
                       <option value="full_cremation">Full Cremation with Chapel Viewing</option>
                       <option value="cremation_memorial">Cremation Memorial Service</option>
                       <option value="direct_cremation">Direct Cremation</option>

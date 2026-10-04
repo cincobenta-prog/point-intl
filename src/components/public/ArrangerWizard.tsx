@@ -75,10 +75,11 @@ export const ArrangerWizard: React.FC<ArrangerWizardProps> = ({
     full_cremation: 4850,
     direct_burial: 2750,
     full_burial: 5950,
-    pre_need: 3500
+    pre_need: 3500,
+    undecided: 0
   };
 
-  const currentBasePrice = basePrices[disposition] || 3195;
+  const currentBasePrice = basePrices[disposition] ?? 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +197,9 @@ export const ArrangerWizard: React.FC<ArrangerWizardProps> = ({
       },
       serviceSelections: {
         dispositionType: disposition,
-        packageTitle: disposition === 'full_cremation' 
+        packageTitle: disposition === 'undecided'
+          ? 'To Be Finalized with Licensed Funeral Director'
+          : disposition === 'full_cremation' 
           ? 'Funeral Service with Cremation'
           : disposition === 'cremation_memorial'
           ? 'Cremation and Memorial Service'
@@ -206,9 +209,9 @@ export const ArrangerWizard: React.FC<ArrangerWizardProps> = ({
           ? 'Direct Cremation'
           : 'Direct Earth Burial',
         basePackagePrice: currentBasePrice,
-        casketOrUrnSelected: disposition.includes('cremation') ? 'Handcrafted Solid Bronze Urn' : 'The St. Nicholas Heritage Casket',
+        casketOrUrnSelected: disposition === 'undecided' ? 'To Be Selected During Consultation' : disposition.includes('cremation') ? 'Handcrafted Solid Bronze Urn' : 'The St. Nicholas Heritage Casket',
         casketPrice: 0,
-        viewingParlor: 'Parlor A (Seats 120)',
+        viewingParlor: 'Chapel 1 (Main Sanctuary - Seats 150)',
         crematoryOrCemeteryName: disposition.includes('cremation') 
           ? 'Woodlawn Crematory (Bronx, NY)'
           : 'Woodlawn Cemetery (Bronx, NY)'
@@ -647,12 +650,20 @@ export const ArrangerWizard: React.FC<ArrangerWizardProps> = ({
                         title: 'Direct Cremation',
                         price: '$1,995',
                         desc: 'Direct transfer and cremation with return of urn to family.'
+                      },
+                      {
+                        id: 'undecided',
+                        title: 'To Be Determined with Funeral Director',
+                        price: 'Consultation',
+                        desc: 'Consult directly with our licensed director during your conference to select services, chapel rooms, and custom options.'
                       }
                     ].map(item => (
                       <div
                         key={item.id}
                         onClick={() => setDisposition(item.id as DispositionType)}
                         className={`p-3.5 rounded-xl border cursor-pointer transition ${
+                          item.id === 'undecided' ? 'sm:col-span-2' : ''
+                        } ${
                           disposition === item.id
                             ? 'bg-red-50/90 border-[#991b1b] ring-2 ring-[#991b1b]/20 shadow-xs'
                             : 'bg-white border-neutral-200 hover:border-neutral-300'

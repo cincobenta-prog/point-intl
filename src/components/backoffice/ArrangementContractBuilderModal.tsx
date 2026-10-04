@@ -112,8 +112,8 @@ export const ArrangementContractBuilderModal: React.FC<ArrangementContractBuilde
     return activeCase.serviceSelections?.serviceDate || '2026-09-22';
   });
   const [scheduleViewingHours, setScheduleViewingHours] = useState<string>('10:00 AM – 11:00 AM (Pre-Service)');
-  const [scheduleViewingParlor, setScheduleViewingParlor] = useState<'Parlor A (Seats 120)' | 'Parlor B (Seats 110)' | 'Church / External Venue' | 'Direct / No Viewing'>(() => {
-    return activeCase.serviceSelections?.viewingParlor || 'Parlor A (Seats 120)';
+  const [scheduleViewingParlor, setScheduleViewingParlor] = useState<string>(() => {
+    return activeCase.serviceSelections?.viewingParlor || 'Chapel 1 (Main Sanctuary - Seats 150)';
   });
   const [scheduleCortegeLineupTime, setScheduleCortegeLineupTime] = useState<string>('12:15 PM');
   const [scheduleCortegeDepartureTime, setScheduleCortegeDepartureTime] = useState<string>('12:30 PM');
@@ -1526,11 +1526,15 @@ Licensed Funeral Director: Jason Benta, NYS Reg. #08850
                         <label className="text-[10px] font-bold text-neutral-400 uppercase">Viewing Facility / Parlor:</label>
                         <select
                           value={scheduleViewingParlor}
-                          onChange={(e) => setScheduleViewingParlor(e.target.value as any)}
+                          onChange={(e) => setScheduleViewingParlor(e.target.value)}
                           className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-hidden"
                         >
-                          <option value="Parlor A (Seats 120)">Parlor A (Seats 120)</option>
-                          <option value="Parlor B (Seats 110)">Parlor B (Seats 110)</option>
+                          <option value="Chapel 1 (Main Sanctuary - Seats 150)">Chapel 1 (Main Sanctuary - Seats 150)</option>
+                          <option value="Chapel 2 (Memorial Chapel - Seats 100)">Chapel 2 (Memorial Chapel - Seats 100)</option>
+                          <option value="Parlor A (North Salon - Seats 120)">Parlor A (Seats 120)</option>
+                          <option value="Parlor B (Central Salon - Seats 110)">Parlor B (Seats 110)</option>
+                          <option value="Parlor C (South Salon - Seats 80)">Parlor C (Seats 80)</option>
+                          <option value="Parlor R (Repast Suite & Family Gathering)">Parlor R (Repast Room)</option>
                           <option value="Church / External Venue">Church / External Venue</option>
                           <option value="Direct / No Viewing">Direct / No Viewing</option>
                         </select>

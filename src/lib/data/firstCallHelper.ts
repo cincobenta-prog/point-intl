@@ -67,9 +67,14 @@ export function createCaseFromFirstCall(
   };
 
   // Base service selections
+  const isUndecided = formData.dispositionType === 'undecided';
+  const isCrem = !isUndecided && formData.dispositionType.includes('cremation');
+
   const serviceSelections = {
     dispositionType: formData.dispositionType,
-    packageTitle: formData.dispositionType === 'full_burial'
+    packageTitle: formData.dispositionType === 'undecided'
+      ? 'To Be Finalized with Licensed Funeral Director'
+      : formData.dispositionType === 'full_burial'
       ? 'Traditional Harlem Sanctuary Burial Service'
       : formData.dispositionType === 'full_cremation'
       ? 'Full Traditional Cremation with Chapel Viewing'
@@ -78,13 +83,13 @@ export function createCaseFromFirstCall(
       : formData.dispositionType === 'direct_burial'
       ? 'Direct Immediate Graveside Burial'
       : 'Direct Dignified Cremation',
-    basePackagePrice: formData.dispositionType.includes('cremation') ? 4850 : 5950,
-    casketOrUrnSelected: formData.dispositionType.includes('cremation') ? 'Cherry Veneer Hardwood Rental' : '18-Gauge Steel Gasketed Casket',
-    casketPrice: 1450,
-    viewingParlor: formData.viewingParlor,
-    serviceVenueName: formData.viewingParlor === 'Church / External Venue' ? 'Harlem Sanctuary Church' : "Benta's Funeral Home Chapel",
+    basePackagePrice: isUndecided ? 0 : isCrem ? 4850 : 5950,
+    casketOrUrnSelected: isUndecided ? 'To Be Selected During Consultation' : isCrem ? 'Cherry Veneer Hardwood Rental' : '18-Gauge Steel Gasketed Casket',
+    casketPrice: isUndecided ? 0 : 1450,
+    viewingParlor: formData.viewingParlor || 'Chapel 1 (Main Sanctuary - Seats 150)',
+    serviceVenueName: formData.viewingParlor === 'Church / External Venue' ? 'Harlem Sanctuary Church' : "Benta's Funeral Home - Chapel 1",
     serviceDate: formData.targetServiceDate || '',
-    crematoryOrCemeteryName: formData.dispositionType.includes('cremation') ? 'Woodlawn Cemetery & Crematory' : 'Woodlawn Cemetery',
+    crematoryOrCemeteryName: isCrem ? 'Woodlawn Cemetery & Crematory' : 'Woodlawn Cemetery',
     specialRequests: formData.specialInstructions || ''
   };
 

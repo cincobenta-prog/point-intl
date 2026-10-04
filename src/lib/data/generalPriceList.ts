@@ -508,56 +508,29 @@ export const getDefaultStatementOfGoodsForCase = (c: GoldenRecordCase): Statemen
       id: 'liv-1',
       vehicleType: 'Cadillac Professional Funeral Hearse',
       rateType: 'local_nyc',
-      count: 1,
+      count: 0,
       unitPrice: BFH_GPL_2026.livery.hearseLocalNYC,
-      totalAmount: BFH_GPL_2026.livery.hearseLocalNYC
+      totalAmount: 0
     },
     {
       id: 'liv-2',
       vehicleType: '7-Passenger Cadillac Family Limousine',
       rateType: 'local_nyc',
-      count: 2,
+      count: 0,
       unitPrice: BFH_GPL_2026.livery.limousine7PaxLocal,
-      totalAmount: BFH_GPL_2026.livery.limousine7PaxLocal * 2
+      totalAmount: 0
     },
     {
       id: 'liv-3',
       vehicleType: 'Lead Director / NYPD Escort Vehicle',
       rateType: 'local_nyc',
-      count: 1,
+      count: 0,
       unitPrice: BFH_GPL_2026.livery.alternativeVehicleLocal,
-      totalAmount: BFH_GPL_2026.livery.alternativeVehicleLocal
+      totalAmount: 0
     }
   ];
 
-  const defaultFloralItems: FloralArrangementItem[] = [
-    {
-      id: 'fl-1',
-      code: 'BFH-CC-005',
-      name: 'Spring Pastel Garden Casket Spray',
-      type: 'casket_spray',
-      size: 'medium',
-      ribbonText: 'Loving Family',
-      imageUrl: '/images/florals/bfh_cc_005.jpg',
-      description: 'BFH-CC-005 - Spring Pastel Garden Casket Spray (MEDIUM • Sash: "Loving Family")',
-      quantity: 1,
-      unitPrice: 350.00,
-      totalAmount: 350.00
-    },
-    {
-      id: 'fl-2',
-      code: 'BFH-CC-001',
-      name: 'Patriotic Tricolor Standing Wreath',
-      type: 'standing_spray',
-      size: 'medium',
-      ribbonText: 'Beloved Papa',
-      imageUrl: '/images/florals/bfh_cc_001.jpg',
-      description: 'BFH-CC-001 - Patriotic Tricolor Standing Wreath (MEDIUM • Sash: "Beloved Papa")',
-      quantity: 2,
-      unitPrice: 325.00,
-      totalAmount: 650.00
-    }
-  ];
+  const defaultFloralItems: FloralArrangementItem[] = [];
 
 
   const rawData: StatementOfGoodsData = {
@@ -585,13 +558,13 @@ export const getDefaultStatementOfGoodsForCase = (c: GoldenRecordCase): Statemen
       B_excessMilesAmount: 0,
 
       C1_embalmingAmount: BFH_GPL_2026.embalming,
-      C1_embalmingSelected: true,
+      C1_embalmingSelected: false,
       C2_topicalDisinfectionAmount: 0,
       C2_custodialCareDays: 0,
       C2_custodialCareRatePerDay: BFH_GPL_2026.custodialCareDailyRate,
       C2_custodialCareAmount: 0,
-      C2_dressingCasketingAmount: BFH_GPL_2026.dressingCasketing,
-      C2_cosmetologyAmount: BFH_GPL_2026.cosmetology,
+      C2_dressingCasketingAmount: 0,
+      C2_cosmetologyAmount: 0,
       C2_restorationAmount: 0,
       C2_refrigerationDays: 0,
       C2_refrigerationRatePerDay: BFH_GPL_2026.refrigerationDailyRate,
@@ -600,19 +573,19 @@ export const getDefaultStatementOfGoodsForCase = (c: GoldenRecordCase): Statemen
 
       D_basicArrangementsAmount: BFH_GPL_2026.basicArrangements,
 
-      E1_supervisionVisitationAmount: BFH_GPL_2026.supervisionVisitation,
+      E1_supervisionVisitationAmount: 0,
       E1_isAfterHours: false,
-      E2_supervisionFuneralServiceAmount: BFH_GPL_2026.supervisionFuneralService,
+      E2_supervisionFuneralServiceAmount: 0,
       E2_isAfterHours: false,
-      E3_supervisionCemeteryCrematoryAmount: BFH_GPL_2026.supervisionCemeteryCrematory,
+      E3_supervisionCemeteryCrematoryAmount: 0,
       E3_supervisionGravesideAmount: 0,
       E3_supervisionMemorialAmount: 0,
       E3_supervisionDisintermentAmount: 0,
       E3_consulateFilingFeeAmount: 0,
       E3_otherSupervisionAmount: 0,
 
-      F1_facilitiesVisitationAmount: BFH_GPL_2026.facilitiesVisitation,
-      F2_facilitiesFuneralServiceAmount: BFH_GPL_2026.facilitiesFuneralService,
+      F1_facilitiesVisitationAmount: 0,
+      F2_facilitiesFuneralServiceAmount: 0,
       F3_facilitiesMemorialServiceAmount: 0,
       F3_prepRoomCeremonialAmount: 0,
       F3_repastRoomAmount: 0,
@@ -622,64 +595,64 @@ export const getDefaultStatementOfGoodsForCase = (c: GoldenRecordCase): Statemen
       G_vehicles: defaultLiveryVehicles,
       G_totalLiveryAmount: 0,
 
-      H1_casketSelected: !isCremation,
+      H1_casketSelected: false,
       H1_casketSupplier: 'Batesville / BFH Reserve',
       H1_casketModelNameOrNumber: c.serviceSelections.casketOrUrnSelected || 'The Harlem Heritage Imperial Bronze',
       H1_casketMaterialSpeciesOrGauge: '32oz Solid Bronze with Gold Leaf Trim',
       H1_casketInterior: 'Pearl Champagne Velvet with Sunburst Cap Panel',
-      H1_casketAmount: c.serviceSelections.casketPrice || 4650.00,
+      H1_casketAmount: 0,
       H1_isRentalCasket: false,
 
-      H2_outerReceptacleSelected: !isCremation,
+      H2_outerReceptacleSelected: false,
       H2_outerReceptacleSupplier: 'Wilbert Vault Co.',
       H2_outerReceptacleModelName: 'Wilbert Venetian® Heavy Concrete Reinforced Vault',
       H2_outerReceptacleMaterial: 'ABS Fiberlon® / 3000 PSI Concrete (NYC Requirement)',
-      H2_outerReceptacleAmount: 2850.00,
+      H2_outerReceptacleAmount: 0,
 
-      H3_urnSelected: isCremation,
+      H3_urnSelected: false,
       H3_urnSupplier: 'Benta Cremation Arts',
       H3_urnModelName: 'The Harlem Jazz Living Memorial Bronze Urn',
       H3_urnMaterial: 'Hand-Spun Solid Bronze with Gold Leaf Patina',
-      H3_urnAmount: 1250.00,
+      H3_urnAmount: 0,
 
-      I1_memorialCardsAmount: BFH_GPL_2026.stationery.memorialCardsWithPhoto50,
+      I1_memorialCardsAmount: 0,
       I1_memorialCardsType: 'with_photo_50',
-      I1_memorialCardsQty: 100,
+      I1_memorialCardsQty: 0,
 
-      I2_acknowledgementCardsAmount: BFH_GPL_2026.stationery.stockThankYouCards25 * 2,
-      I2_acknowledgementCardsQty: 50,
+      I2_acknowledgementCardsAmount: 0,
+      I2_acknowledgementCardsQty: 0,
 
-      I3_casketPlateAmount: BFH_GPL_2026.stationery.casketPlateEngraved,
+      I3_casketPlateAmount: 0,
       I3_casketPlateEngravingText: `${c.decedent.legalName} • 1944 — 2026`,
 
       I4_crucifixCrossAmount: 0,
-      I5_hairdressingAmount: BFH_GPL_2026.stationery.hairdressing,
+      I5_hairdressingAmount: 0,
       I5_hairStylistName: 'Harlem Master Stylist',
 
-      I6_flowersSelected: true,
+      I6_flowersSelected: false,
       I6_noFlowersRequested: false,
       I6_flowerItems: defaultFloralItems,
-      I6_totalFlowersAmount: 1000.00,
+      I6_totalFlowersAmount: 0,
 
       I7_clothingBurialGarmentsAmount: 0,
-      I8_registerBookAmount: BFH_GPL_2026.stationery.registerBookDeluxe,
+      I8_registerBookAmount: 0,
       I8_registerBookType: 'Leatherette Keepsake Register Book with Gold Benta Crest',
 
       I9_deathNoticesAmount: 0,
       I10_programsMatrix: {
         programType: 'large_bifold_50',
-        quantity: 150,
-        unitPrice: BFH_GPL_2026.stationery.largeBiFold50 * 2,
+        quantity: 0,
+        unitPrice: BFH_GPL_2026.stationery.largeBiFold50,
         lateFeeApplied: false,
-        lateFeeAmount: BFH_GPL_2026.stationery.productionLateFee,
-        totalAmount: BFH_GPL_2026.stationery.largeBiFold50 * 2
+        lateFeeAmount: 0,
+        totalAmount: 0
       },
 
-      I11_videoTributeAmount: BFH_GPL_2026.stationery.videoTribute40Photos,
-      I11_videoTributePhotoCount: 40,
+      I11_videoTributeAmount: 0,
+      I11_videoTributePhotoCount: 0,
 
-      I12_capPanelsAmount: BFH_GPL_2026.stationery.capPanels,
-      I12_easelPhotosAmount: 50.00,
+      I12_capPanelsAmount: 0,
+      I12_easelPhotosAmount: 0,
       I12_casketEngravingAmount: 0,
       I12_urnKeepsakeTransfersAmount: 0,
       I12_equipmentSetupAmount: 0,

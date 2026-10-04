@@ -13,7 +13,8 @@ export type DispositionType =
   | 'full_cremation'
   | 'direct_burial'
   | 'full_burial'
-  | 'pre_need';
+  | 'pre_need'
+  | 'undecided';
 
 export type DocumentStatus = 'pending' | 'generated' | 'sent' | 'signed' | 'approved' | 'completed' | 'urgent';
 
@@ -93,7 +94,16 @@ export interface ServiceSelections {
   basePackagePrice: number;
   casketOrUrnSelected: string;
   casketPrice: number;
-  viewingParlor: 'Parlor A (Seats 120)' | 'Parlor B (Seats 110)' | 'Church / External Venue' | 'Direct / No Viewing';
+  viewingParlor:
+    | 'Chapel 1 (Main Sanctuary - Seats 150)'
+    | 'Chapel 2 (Memorial Chapel - Seats 100)'
+    | 'Parlor A (Seats 120)'
+    | 'Parlor B (Seats 110)'
+    | 'Parlor C (Seats 80)'
+    | 'Parlor R (Repast Room)'
+    | 'Church / External Venue'
+    | 'Direct / No Viewing'
+    | string;
   serviceVenueName?: string;
   serviceDate?: string;
   serviceTime?: string;
@@ -403,7 +413,16 @@ export interface FirstCallIntakeFormData {
   physicianLicenseNumber?: string;
   
   dispositionType: DispositionType;
-  viewingParlor: 'Parlor A (Seats 120)' | 'Parlor B (Seats 110)' | 'Church / External Venue' | 'Direct / No Viewing';
+  viewingParlor:
+    | 'Chapel 1 (Main Sanctuary - Seats 150)'
+    | 'Chapel 2 (Memorial Chapel - Seats 100)'
+    | 'Parlor A (Seats 120)'
+    | 'Parlor B (Seats 110)'
+    | 'Parlor C (Seats 80)'
+    | 'Parlor R (Repast Room)'
+    | 'Church / External Venue'
+    | 'Direct / No Viewing'
+    | string;
   targetServiceDate?: string;
   
   // Arrangement Appointment Scheduling
